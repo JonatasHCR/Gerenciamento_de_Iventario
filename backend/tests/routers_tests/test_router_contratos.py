@@ -25,7 +25,7 @@ async def test_get_contratos(async_client):
 
     response = await async_client.get(URL_CONTRATO)
     assert response.status_code == HTTPStatus.OK
-    assert isinstance(response.json(), list)
+    assert isinstance(response.json()['contratos'], list)
 
 
 @pytest.mark.asyncio
@@ -40,7 +40,7 @@ async def test_update_contrato(async_client):
         'centro_custo': '5582',
         'descricao': 'Contrato',
     }
-    response = await async_client.patch(
+    response = await async_client.put(
         f'{URL_CONTRATO}{contrato_centro_custo}/',
         json=updated_contrato,
         follow_redirects=True,
@@ -61,7 +61,7 @@ async def test_update_contrato_not_found(async_client):
         'centro_custo': '5582',
         'descricao': 'Contrato',
     }
-    response = await async_client.patch(
+    response = await async_client.put(
         f'{URL_CONTRATO}{contrato_centro_custo}/',
         json=updated_contrato,
         follow_redirects=True,
@@ -79,7 +79,8 @@ async def test_delete_contrato(async_client):
     response = await async_client.delete(
         f'{URL_CONTRATO}{contrato_centro_custo}/', follow_redirects=True
     )
-    assert response.status_code == HTTPStatus.NO_CONTENT
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['centro_custo'] == contrato_centro_custo
 
 
 @pytest.mark.asyncio

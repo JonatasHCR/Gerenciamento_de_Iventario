@@ -38,7 +38,7 @@ async def test_get_users(async_client):
 
     response = await async_client.get(URL_USUARIO)
     assert response.status_code == HTTPStatus.OK
-    assert isinstance(response.json(), list)
+    assert isinstance(response.json()['users'], list)
 
 
 @pytest.mark.asyncio
@@ -55,7 +55,7 @@ async def test_update_user(async_client):
         'senha': 'nova_senha123',
         'tipo': 'adm',
     }
-    response = await async_client.patch(
+    response = await async_client.put(
         f'{URL_USUARIO}{usuario_id}/',
         json=updated_usuario,
         follow_redirects=True,
@@ -79,7 +79,7 @@ async def test_update_user_not_found(async_client):
         'senha': 'nova_senha123',
         'tipo': 'adm',
     }
-    response = await async_client.patch(
+    response = await async_client.put(
         f'{URL_USUARIO}{usuario_id}/',
         json=updated_usuario,
         follow_redirects=True,
@@ -97,7 +97,8 @@ async def test_delete_user(async_client):
     response = await async_client.delete(
         f'{URL_USUARIO}{usuario_id}/', follow_redirects=True
     )
-    assert response.status_code == HTTPStatus.NO_CONTENT
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['id'] == usuario_id
 
 
 @pytest.mark.asyncio

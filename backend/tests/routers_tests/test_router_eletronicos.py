@@ -33,7 +33,7 @@ async def test_get_eletronicos(async_client):
 
     response = await async_client.get(URL_ELETRONICO)
     assert response.status_code == HTTPStatus.OK
-    assert isinstance(response.json(), list)
+    assert isinstance(response.json()['eletronicos'], list)
 
 
 @pytest.mark.asyncio
@@ -56,7 +56,7 @@ async def test_update_eletronico(async_client):
         'ip': '10.0.0.1',
         'centro_custo': '0001',
     }
-    response = await async_client.patch(
+    response = await async_client.put(
         f'{URL_ELETRONICO}{eletronico_id}/',
         json=updated_eletronico,
         follow_redirects=True,
@@ -88,7 +88,7 @@ async def test_update_eletronico_not_found(async_client):
         'ip': '10.0.0.1',
         'centro_custo': '0001',
     }
-    response = await async_client.patch(
+    response = await async_client.put(
         f'{URL_ELETRONICO}{eletronico_id}/',
         json=updated_eletronico,
         follow_redirects=True,
@@ -106,7 +106,8 @@ async def test_delete_eletronico(async_client):
     response = await async_client.delete(
         f'{URL_ELETRONICO}{eletronico_id}/', follow_redirects=True
     )
-    assert response.status_code == HTTPStatus.NO_CONTENT
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['id'] == eletronico_id
 
 
 @pytest.mark.asyncio
