@@ -1,10 +1,47 @@
 from http import HTTPStatus
 
+from fastapi import Depends
 from fastapi.routing import APIRouter
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.core.engine import get_db
+from backend.schemas.user import UserCreate, UserRead
+from backend.service.user import UserService
 
 router_user = APIRouter(prefix='/users', tags=['users'])
 
 
-@router_user.get('/', status_code=HTTPStatus.OK)
-def get_users():
-    return {'message': 'Lista de usuários'}
+@router_user.get('/', status_code=HTTPStatus.OK, response_model=list[UserRead])
+async def get_users(session: AsyncSession = Depends(get_db)):
+    service = UserService(session)
+    return await service.get_users()
+
+
+@router_user.post('/', status_code=HTTPStatus.CREATED, response_model=UserRead)
+async def create(
+    user: UserCreate,
+    session: AsyncSession = Depends(get_db),
+):
+    service = UserService(session)
+    return await service.create(user)
+
+
+@router_user.patch(
+    '/{user_id}', status_code=HTTPStatus.OK, response_model=UserRead
+)
+async def update(
+    user_id: int,
+    user: UserCreate,
+    session: AsyncSession = Depends(get_db),
+):
+    service = UserService(session)
+    return await service.update(user_id, user)
+
+
+@router_user.delete('/{user_id}', status_code=HTTPStatus.NO_CONTENT)
+async def delete(
+    user_id: int,
+    session: AsyncSession = Depends(get_db),
+):
+    service = UserService(session)
+    await service.delete(user_id)

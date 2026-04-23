@@ -1,10 +1,51 @@
 from http import HTTPStatus
 
+from fastapi import Depends
 from fastapi.routing import APIRouter
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.core.engine import get_db
+from backend.schemas.eletronicos import EletronicoCreate, EletronicoRead
+from backend.service.eletronicos import EletronicoService
 
 router_eletronicos = APIRouter(prefix='/eletronicos', tags=['eletronicos'])
 
 
-@router_eletronicos.get('/', status_code=HTTPStatus.OK)
-def get_eletronicos():
-    return {'message': 'Lista de eletrônicos'}
+@router_eletronicos.get(
+    '/', status_code=HTTPStatus.OK, response_model=list[EletronicoRead]
+)
+async def get(session: AsyncSession = Depends(get_db)):
+    service = EletronicoService(session)
+    return await service.get()
+
+
+@router_eletronicos.post(
+    '/', status_code=HTTPStatus.CREATED, response_model=EletronicoRead
+)
+async def create(
+    eletronico: EletronicoCreate,
+    session: AsyncSession = Depends(get_db),
+):
+    service = EletronicoService(session)
+    return await service.create(eletronico)
+
+
+@router_eletronicos.patch(
+    '/{id}', status_code=HTTPStatus.OK, response_model=EletronicoRead
+)
+async def update(
+    id: int,
+    eletronico: EletronicoCreate,
+    session: AsyncSession = Depends(get_db),
+):
+    service = EletronicoService(session)
+    return await service.update(id, eletronico)
+
+
+@router_eletronicos.delete('/{id}', status_code=HTTPStatus.NO_CONTENT)
+async def delete(
+    id: int,
+    session: AsyncSession = Depends(get_db),
+):
+    service = EletronicoService(session)
+    await service.delete(id)
