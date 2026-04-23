@@ -13,3 +13,7 @@ class UserRead(BaseModel):
     nome: str = Field(..., description='Nome do usuário')
     email: EmailStr = Field(..., description='Email do usuário')
     tipo: str = Field(..., description='Tipo do usuário')
+
+
+class UserList(BaseModel):
+    users: list[UserRead] = Field(..., description='Lista de usuários')

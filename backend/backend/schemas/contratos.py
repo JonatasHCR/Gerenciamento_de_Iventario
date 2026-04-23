@@ -11,3 +11,9 @@ class ContratoCreate(BaseModel):
 
 class ContratoRead(ContratoCreate):
     pass
+
+
+class ContratoList(BaseModel):
+    contratos: list[ContratoRead] = Field(
+        ..., description='Lista de contratos'
+    )

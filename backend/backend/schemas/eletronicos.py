@@ -20,3 +20,9 @@ class EletronicoCreate(BaseModel):
 
 class EletronicoRead(EletronicoCreate):
     id: int = Field(..., description='ID do eletrônico')
+
+
+class EletronicoList(BaseModel):
+    eletronicos: list[EletronicoRead] = Field(
+        ..., description='Lista de eletrônicos'
+    )
