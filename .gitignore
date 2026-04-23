@@ -1,3 +1,16 @@
 ### Obsidian ###
 
 .obsidian
+
+### Drawio ###
+
+*.bkp
+
+### Vscode ###
+
+.vscode
+
+### TEMP ###
+Configs.md
+frontend
+backend_fail
