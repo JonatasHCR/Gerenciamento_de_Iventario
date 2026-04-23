@@ -3,7 +3,7 @@
 
 ## IDEALIZAÇÃO DO PROJETO
 
-Este projeto tem como objetivo o controle de inventário de ativos da empresa, tanto internos quanto externos.  
+Este projeto tem como objetivo o controle de inventário da empresa, tanto internos quanto externos.  
 Inicialmente, o sistema será focado no gerenciamento de aparelhos tecnológicos, como computadores, notebooks e periféricos.  
 Futuramente, o escopo será ampliado para incluir o controle de outros bens patrimoniais, como mesas, cadeiras e demais itens físicos.
 
@@ -15,11 +15,11 @@ O escopo deste projeto restringe-se ao desenvolvimento de um sistema destinado a
 
 O usuário com perfil Funcionário possui permissões restritas à gestão dos aparelhos tecnológicos vinculados ao seu cadastro. Suas funcionalidades incluem:
 
-Cadastrar aparelhos tecnológicos associados ao próprio usuário;
+- Cadastrar aparelhos tecnológicos associados ao próprio usuário;
 
-Editar informações dos aparelhos cadastrados;
+- Editar informações dos aparelhos cadastrados;
 
-Excluir aparelhos tecnológicos vinculados ao seu perfil.
+- Excluir aparelhos tecnológicos vinculados ao seu perfil.
 
 As operações realizadas por esse perfil são limitadas exclusivamente aos equipamentos sob sua responsabilidade.
 
@@ -27,22 +27,38 @@ As operações realizadas por esse perfil são limitadas exclusivamente aos equi
 
 O usuário com perfil Subgestor possui todas as permissões atribuídas ao perfil Funcionário, acrescidas das seguintes funcionalidades administrativas no âmbito do centro de custo ao qual está vinculado:
 
-Adicionar funcionários ao centro de custo sob sua responsabilidade;
+- Adicionar funcionários ao centro de custo sob sua responsabilidade;
 
-Remover funcionários do centro de custo;
+- Remover funcionários do centro de custo;
 
-Gerar relatórios contendo o inventário e o controle de todos os equipamentos vinculados ao centro de custo ou ao gestor responsável.
+- Gerar relatórios contendo o inventário e o controle de todos os equipamentos vinculados ao centro de custo ou ao gestor responsável.
 
 ### PERFIL: GESTOR
 
-O usuário com perfil Gestor possui todas as permissões atribuídas ao perfil Subgestor, além de funcionalidades adicionais relacionadas à gestão administrativa e contratual:
+O usuário com perfil Gestor possui todas as permissões atribuídas ao perfil Sub-gestor, além de funcionalidades adicionais relacionadas à gestão administrativa e contratual:
 
-Criar contratos vinculados ao seu centro de responsabilidade;
+- Criar contratos vinculados ao seu centro de responsabilidade;
 
-Editar contratos existentes;
+- Editar contratos existentes;
 
-Excluir contratos;
+- Excluir contratos;
 
-Nomear usuários com perfil de Subgestor;
+- Nomear usuários com perfil de Sub-gestor;
 
-Exportar equipamentos da empresa para contratos de sua responsabilidade.
+- Exportar equipamentos da empresa para contratos de sua responsabilidade.
+
+## MODELAGEM
+
+- Diagrama de Casos de Uso
+
+- Modelo Conceitual
+
+- Modelo Lógico
+
+- Modelo Físico
+
+- Protótipo
+
+
+# SEGUNDA ETAPA
+
