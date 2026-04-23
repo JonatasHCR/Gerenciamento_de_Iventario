@@ -5,18 +5,23 @@ from fastapi.routing import APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.engine import get_db
-from backend.schemas.contratos import ContratoCreate, ContratoRead
+from backend.schemas.contratos import (
+    ContratoCreate,
+    ContratoList,
+    ContratoRead,
+)
 from backend.service.contratos import ContratoService
 
 router_contratos = APIRouter(prefix='/contratos', tags=['contratos'])
 
 
 @router_contratos.get(
-    '/', status_code=HTTPStatus.OK, response_model=list[ContratoRead]
+    '/', status_code=HTTPStatus.OK, response_model=ContratoList
 )
 async def get(session: AsyncSession = Depends(get_db)):
     service = ContratoService(session)
-    return await service.get()
+    contratos = await service.get()
+    return {'contratos': contratos}
 
 
 @router_contratos.post(
@@ -30,7 +35,7 @@ async def create(
     return await service.create(contrato)
 
 
-@router_contratos.patch(
+@router_contratos.put(
     '/{centro_custo}',
     status_code=HTTPStatus.OK,
     response_model=ContratoRead,
@@ -44,10 +49,12 @@ async def update(
     return await service.update(centro_custo, contrato)
 
 
-@router_contratos.delete('/{centro_custo}', status_code=HTTPStatus.NO_CONTENT)
+@router_contratos.delete(
+    '/{centro_custo}', status_code=HTTPStatus.OK, response_model=ContratoRead
+)
 async def delete(
     centro_custo: str,
     session: AsyncSession = Depends(get_db),
 ):
     service = ContratoService(session)
-    await service.delete(centro_custo)
+    return await service.delete(centro_custo)
