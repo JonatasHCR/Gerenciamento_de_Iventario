@@ -47,11 +47,12 @@ class EletronicoService:
         result = await self.session.execute(
             select(Eletronico).where(Eletronico.id == eletronico_id)
         )
-        existing = result.scalar_one_or_none()
-        if existing is None:
+        eletronico = result.scalar_one_or_none()
+        if eletronico is None:
             raise HTTPException(
                 status_code=HTTPStatus.NOT_FOUND,
                 detail='Eletrônico não encontrado.',
             )
-        await self.session.delete(existing)
+        await self.session.delete(eletronico)
         await self.session.commit()
+        return eletronico

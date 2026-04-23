@@ -54,11 +54,13 @@ class UserService:
         result = await self.session.execute(
             select(User).where(User.id == user_id)
         )
-        existing = result.scalar_one_or_none()
-        if existing is None:
+        user = result.scalar_one_or_none()
+        if user is None:
             raise HTTPException(
                 status_code=HTTPStatus.NOT_FOUND,
                 detail='Usuário não encontrado.',
             )
-        await self.session.delete(existing)
+        await self.session.delete(user)
         await self.session.commit()
+
+        return user

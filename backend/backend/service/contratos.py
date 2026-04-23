@@ -46,11 +46,12 @@ class ContratoService:
         result = await self.session.execute(
             select(Contrato).where(Contrato.centro_custo == centro_custo)
         )
-        existing = result.scalar_one_or_none()
-        if existing is None:
+        contrato = result.scalar_one_or_none()
+        if contrato is None:
             raise HTTPException(
                 status_code=HTTPStatus.NOT_FOUND,
                 detail='Contrato não encontrado.',
             )
-        await self.session.delete(existing)
+        await self.session.delete(contrato)
         await self.session.commit()
+        return contrato
