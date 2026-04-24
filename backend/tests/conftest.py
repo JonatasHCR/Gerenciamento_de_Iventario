@@ -71,3 +71,36 @@ async def async_client(async_db):
             yield client
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def usuario_teste():
+    return {
+        'nome': 'João Silva',
+        'email': 'joao.silva@example.com',
+        'senha': 'senha123',
+        'tipo': 'funcionario',
+    }
+
+
+@pytest_asyncio.fixture
+async def eletronico_teste():
+    return {
+        'numero_serie': 'SN123456789',
+        'numero_patrimonio': 'PT123456789',
+        'nome': 'Notebook Dell',
+        'marca': 'Dell',
+        'tipo': 'Notebook',
+        'modelo': 'XPS 15',
+        'status': 'Interno',
+        'ip': '10.0.0.0',
+        'centro_custo': '0001',
+    }
+
+
+@pytest_asyncio.fixture
+async def contrato_teste():
+    return {
+        'centro_custo': '5582',
+        'descricao': 'Contrato de manutenção de computadores',
+    }
