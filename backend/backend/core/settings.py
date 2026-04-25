@@ -1,14 +1,13 @@
 from os.path import dirname, join
 
-from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = dirname(dirname(dirname(__file__)))
-load_dotenv()
 
 
 class Settings(BaseSettings):
-    ENGINE: str
+    ENGINE_ASYNC: str
+    ENGINE_SYNC: str
     DB_USER: str
     DB_PASSWORD: str
     DB_HOST: str
@@ -20,5 +19,8 @@ class Settings(BaseSettings):
         extra='ignore',
     )
 
-    def database_url(self) -> str:
-        return f'{self.ENGINE}://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}'
+    def database_url_async(self) -> str:
+        return f'{self.ENGINE_ASYNC}://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}'
+
+    def database_url_sync(self) -> str:
+        return f'{self.ENGINE_SYNC}://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}'
