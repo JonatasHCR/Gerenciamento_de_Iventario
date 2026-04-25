@@ -60,6 +60,7 @@ async def test_update_user(async_client, usuario_teste):
         'email': 'joao.souza@example.com',
         'senha': 'nova_senha123',
         'tipo': 'adm',
+        'username': 'joao.souza',
     }
 
     response = await async_client.put(
@@ -89,6 +90,7 @@ async def test_update_user_not_found(async_client, usuario_teste):
         'email': 'joao.souza@example.com',
         'senha': 'nova_senha123',
         'tipo': 'adm',
+        'username': 'joao.souza',
     }
     response = await async_client.put(
         f'{URL_USUARIO}{usuario_id}/',

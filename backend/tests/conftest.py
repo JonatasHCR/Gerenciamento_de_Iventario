@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from backend.app import app
-from backend.core.engine import Base, get_db
+from backend.core.database import Base
+from backend.core.engine import EngineApp
 
 DATABASE_URL = 'sqlite+aiosqlite://'
 BASE_URL = 'http://127.0.0.1:8000'
@@ -60,7 +61,7 @@ async def async_client(async_db):
         finally:
             await async_db.flush()
 
-    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[EngineApp.get_async_session] = override_get_db
 
     transport = ASGITransport(app=app)
 
@@ -77,6 +78,7 @@ async def async_client(async_db):
 async def usuario_teste():
     return {
         'nome': 'João Silva',
+        'username': 'joao.silva',
         'email': 'joao.silva@example.com',
         'senha': 'senha123',
         'tipo': 'funcionario',
