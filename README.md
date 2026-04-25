@@ -62,3 +62,4 @@ O usuário com perfil Gestor possui todas as permissões atribuídas ao perfil S
 
 # SEGUNDA ETAPA
 
+- MVP do projeto
