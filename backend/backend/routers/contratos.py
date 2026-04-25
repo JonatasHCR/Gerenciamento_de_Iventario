@@ -4,7 +4,7 @@ from fastapi import Depends
 from fastapi.routing import APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.core.engine import get_db
+from backend.core.engine import EngineApp
 from backend.schemas.contratos import (
     ContratoCreate,
     ContratoList,
@@ -18,7 +18,7 @@ router_contratos = APIRouter(prefix='/contratos', tags=['contratos'])
 @router_contratos.get(
     '/', status_code=HTTPStatus.OK, response_model=ContratoList
 )
-async def get(session: AsyncSession = Depends(get_db)):
+async def get(session: AsyncSession = Depends(EngineApp.get_async_session)):
     service = ContratoService(session)
     contratos = await service.get()
     return {'contratos': contratos}
@@ -29,7 +29,7 @@ async def get(session: AsyncSession = Depends(get_db)):
 )
 async def create(
     contrato: ContratoCreate,
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(EngineApp.get_async_session),
 ):
     service = ContratoService(session)
     return await service.create(contrato)
@@ -43,7 +43,7 @@ async def create(
 async def update(
     centro_custo: str,
     contrato: ContratoCreate,
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(EngineApp.get_async_session),
 ):
     service = ContratoService(session)
     return await service.update(centro_custo, contrato)
@@ -54,7 +54,7 @@ async def update(
 )
 async def delete(
     centro_custo: str,
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(EngineApp.get_async_session),
 ):
     service = ContratoService(session)
     return await service.delete(centro_custo)

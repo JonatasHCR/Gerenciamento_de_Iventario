@@ -4,7 +4,7 @@ from sqlalchemy import (
     String,
 )
 
-from backend.core.engine import Base
+from backend.core.database import Base
 
 
 class User(Base):
@@ -13,6 +13,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     nome = Column(String(100), nullable=False)
+    username = Column(String(100), nullable=False, unique=True)
     email = Column(String(100), nullable=False, unique=True)
     senha = Column(String(255), nullable=False)
     tipo = Column(String(50), nullable=False)

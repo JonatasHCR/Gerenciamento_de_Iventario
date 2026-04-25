@@ -3,7 +3,7 @@ from sqlalchemy import (
     String,
 )
 
-from backend.core.engine import Base
+from backend.core.database import Base
 
 
 class Contrato(Base):
