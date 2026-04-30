@@ -39,9 +39,8 @@ async def test_update_contrato(async_client, contrato_teste):
         'descricao': 'Contrato',
     }
     response = await async_client.put(
-        f'{URL_CONTRATO}{contrato_teste["centro_custo"]}/',
+        f'{URL_CONTRATO}{contrato_teste["centro_custo"]}',
         json=updated_contrato,
-        follow_redirects=True,
     )
     assert response.status_code == HTTPStatus.OK
     assert response.json() == updated_contrato
@@ -60,9 +59,8 @@ async def test_update_contrato_not_found(async_client, contrato_teste):
         'descricao': 'Contrato',
     }
     response = await async_client.put(
-        f'{URL_CONTRATO}{centro_custo}/',
+        f'{URL_CONTRATO}{centro_custo}',
         json=updated_contrato,
-        follow_redirects=True,
     )
     assert response.status_code == HTTPStatus.NOT_FOUND
 
@@ -75,8 +73,7 @@ async def test_delete_contrato(async_client, contrato_teste):
     assert response.status_code == HTTPStatus.CREATED
 
     response = await async_client.delete(
-        f'{URL_CONTRATO}{contrato_teste["centro_custo"]}/',
-        follow_redirects=True,
+        f'{URL_CONTRATO}{contrato_teste["centro_custo"]}',
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -93,6 +90,6 @@ async def test_delete_contrato_not_found(async_client, contrato_teste):
     centro_custo = '9999'
 
     response = await async_client.delete(
-        f'{URL_CONTRATO}{centro_custo}/', follow_redirects=True
+        f'{URL_CONTRATO}{centro_custo}',
     )
     assert response.status_code == HTTPStatus.NOT_FOUND
