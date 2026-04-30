@@ -12,6 +12,8 @@ class EletronicoCreate(BaseModel):
     tipo: str = Field(..., description='Tipo do eletrônico')
     status: str = Field(..., description='Status do eletrônico')
     ip: str = Field(..., description='Endereço IP do eletrônico')
+    localizacao: str = Field(..., description='Localização do eletrônico')
+    descricao: str | None = Field(None, description='Descrição do eletrônico')
     centro_custo: str = Field(
         ...,
         description='Centro de custo que o eletrônico está associado',
