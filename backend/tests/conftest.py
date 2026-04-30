@@ -1,4 +1,5 @@
 import asyncio
+from http import HTTPStatus
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -78,10 +79,9 @@ async def async_client(async_db):
 async def usuario_teste():
     return {
         'nome': 'João Silva',
-        'username': 'joao.silva',
         'email': 'joao.silva@example.com',
         'senha': 'senha123',
-        'tipo': 'funcionario',
+        'tipo': 'Admin',
     }
 
 
@@ -96,6 +96,8 @@ async def eletronico_teste():
         'modelo': 'XPS 15',
         'status': 'Interno',
         'ip': '10.0.0.0',
+        'localizacao': 'Sala de TI',
+        'descricao': 'Notebook para uso interno da empresa',
         'centro_custo': '0001',
     }
 
@@ -106,3 +108,17 @@ async def contrato_teste():
         'centro_custo': '5582',
         'descricao': 'Contrato de manutenção de computadores',
     }
+
+
+@pytest_asyncio.fixture
+async def token_teste(async_client, usuario_teste):
+    await async_client.post('/users/', json=usuario_teste)
+
+    form_data = {
+        'username': usuario_teste['email'],
+        'password': usuario_teste['senha'],
+    }
+    response = await async_client.post('/auth/login', data=form_data)
+    assert response.status_code == HTTPStatus.OK
+
+    return response.json()['access_token']
