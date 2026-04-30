@@ -10,6 +10,7 @@ from backend.schemas.eletronicos import (
     EletronicoList,
     EletronicoRead,
 )
+from backend.security.dependencies import Dependencies
 from backend.service.eletronicos import EletronicoService
 
 router_eletronicos = APIRouter(prefix='/eletronicos', tags=['eletronicos'])
@@ -18,7 +19,10 @@ router_eletronicos = APIRouter(prefix='/eletronicos', tags=['eletronicos'])
 @router_eletronicos.get(
     '/', status_code=HTTPStatus.OK, response_model=EletronicoList
 )
-async def get(session: AsyncSession = Depends(EngineApp.get_async_session)):
+async def get(
+    session: AsyncSession = Depends(EngineApp.get_async_session),
+    current_user=Depends(Dependencies.get_current_user),
+):
     service = EletronicoService(session)
     eletronicos = await service.get()
     return {'eletronicos': eletronicos}
@@ -30,6 +34,7 @@ async def get(session: AsyncSession = Depends(EngineApp.get_async_session)):
 async def create(
     eletronico: EletronicoCreate,
     session: AsyncSession = Depends(EngineApp.get_async_session),
+    current_user=Depends(Dependencies.get_current_user),
 ):
     service = EletronicoService(session)
     return await service.create(eletronico)
@@ -42,6 +47,7 @@ async def update(
     id: int,
     eletronico: EletronicoCreate,
     session: AsyncSession = Depends(EngineApp.get_async_session),
+    current_user=Depends(Dependencies.get_current_user),
 ):
     service = EletronicoService(session)
     return await service.update(id, eletronico)
@@ -53,6 +59,7 @@ async def update(
 async def delete(
     id: int,
     session: AsyncSession = Depends(EngineApp.get_async_session),
+    current_user=Depends(Dependencies.get_current_user),
 ):
     service = EletronicoService(session)
     return await service.delete(id)

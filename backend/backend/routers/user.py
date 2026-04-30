@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.engine import EngineApp
 from backend.schemas.user import UserCreate, UserList, UserRead
+from backend.security.dependencies import Dependencies
 from backend.service.user import UserService
 
 router_user = APIRouter(prefix='/users', tags=['users'])
@@ -14,6 +15,7 @@ router_user = APIRouter(prefix='/users', tags=['users'])
 @router_user.get('/', status_code=HTTPStatus.OK, response_model=UserList)
 async def get_users(
     session: AsyncSession = Depends(EngineApp.get_async_session),
+    current_user: UserRead = Depends(Dependencies.role_required('Admin')),
 ):
     service = UserService(session)
     users = await service.get_users()
@@ -36,6 +38,7 @@ async def update(
     user_id: int,
     user: UserCreate,
     session: AsyncSession = Depends(EngineApp.get_async_session),
+    current_user: UserRead = Depends(Dependencies.role_required('Admin')),
 ):
     service = UserService(session)
     return await service.update(user_id, user)
@@ -47,6 +50,7 @@ async def update(
 async def delete(
     user_id: int,
     session: AsyncSession = Depends(EngineApp.get_async_session),
+    current_user: UserRead = Depends(Dependencies.role_required('Admin')),
 ):
     service = UserService(session)
     return await service.delete(user_id)
