@@ -7,7 +7,9 @@ URL_ELETRONICO = '/eletronicos/'
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_create_eletronico(async_client, eletronico_teste, token_teste):
+async def test_create_eletronico(async_client, eletronico_teste, login_teste):
+
+    token_teste = login_teste['token']
 
     response = await async_client.post(
         URL_ELETRONICO,
@@ -23,8 +25,10 @@ async def test_create_eletronico(async_client, eletronico_teste, token_teste):
 @pytest.mark.asyncio
 @pytest.mark.routers
 async def test_create_eletronico_integrity_error(
-    async_client, eletronico_teste, token_teste
+    async_client, eletronico_teste, login_teste
 ):
+
+    token_teste = login_teste['token']
 
     response = await async_client.post(
         URL_ELETRONICO,
@@ -42,7 +46,9 @@ async def test_create_eletronico_integrity_error(
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_get_eletronicos(async_client, eletronico_teste, token_teste):
+async def test_get_eletronicos(async_client, eletronico_teste, login_teste):
+
+    token_teste = login_teste['token']
 
     response = await async_client.post(
         URL_ELETRONICO,
@@ -60,7 +66,9 @@ async def test_get_eletronicos(async_client, eletronico_teste, token_teste):
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_update_eletronico(async_client, eletronico_teste, token_teste):
+async def test_update_eletronico(async_client, eletronico_teste, login_teste):
+
+    token_teste = login_teste['token']
 
     response = await async_client.post(
         URL_ELETRONICO,
@@ -99,8 +107,10 @@ async def test_update_eletronico(async_client, eletronico_teste, token_teste):
 @pytest.mark.asyncio
 @pytest.mark.routers
 async def test_update_eletronico_not_found(
-    async_client, eletronico_teste, token_teste
+    async_client, eletronico_teste, login_teste
 ):
+
+    token_teste = login_teste['token']
 
     response = await async_client.post(
         URL_ELETRONICO,
@@ -138,8 +148,9 @@ async def test_update_eletronico_not_found(
 @pytest.mark.asyncio
 @pytest.mark.routers
 async def test_update_eletronico_integrity_error(
-    async_client, eletronico_teste, token_teste
+    async_client, eletronico_teste, login_teste
 ):
+    token_teste = login_teste['token']
 
     response = await async_client.post(
         URL_ELETRONICO,
@@ -183,7 +194,9 @@ async def test_update_eletronico_integrity_error(
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_delete_eletronico(async_client, eletronico_teste, token_teste):
+async def test_delete_eletronico(async_client, eletronico_teste, login_teste):
+
+    token_teste = login_teste['token']
 
     response = await async_client.post(
         URL_ELETRONICO,
@@ -207,8 +220,9 @@ async def test_delete_eletronico(async_client, eletronico_teste, token_teste):
 @pytest.mark.asyncio
 @pytest.mark.routers
 async def test_delete_eletronico_not_found(
-    async_client, eletronico_teste, token_teste
+    async_client, eletronico_teste, login_teste
 ):
+    token_teste = login_teste['token']
 
     response = await async_client.post(
         URL_ELETRONICO,

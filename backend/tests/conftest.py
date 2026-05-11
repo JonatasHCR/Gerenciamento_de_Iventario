@@ -1,7 +1,10 @@
 import asyncio
 from http import HTTPStatus
+from random import choice
 
 import pytest_asyncio
+from factory.base import Factory
+from factory.declarations import LazyAttribute, Sequence
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import StaticPool
@@ -9,6 +12,9 @@ from sqlalchemy.pool import StaticPool
 from backend.app import app
 from backend.core.database import Base
 from backend.core.engine import EngineApp
+from backend.model.contratos import Contrato
+from backend.model.eletronicos import Eletronico
+from backend.model.user import User
 
 DATABASE_URL = 'sqlite+aiosqlite://'
 BASE_URL = 'http://127.0.0.1:8000'
@@ -75,50 +81,89 @@ async def async_client(async_db):
         app.dependency_overrides.clear()
 
 
+class FactoryUser(Factory):
+    class Meta:
+        model = User
+
+    nome = Sequence(lambda n: f'Teste{n}')
+    email = LazyAttribute(lambda obj: f'{obj.nome}@teste.com')
+    senha = LazyAttribute(lambda obj: f'{obj.nome}123')
+    tipo = 'Admin'
+    #     'Admin',
+    #     'Funcionario',
+    #     'Gestor',
+    #     'Subgestor',
+    #     'Tecnico_TI',
+    # ])
+
+
 @pytest_asyncio.fixture
 async def usuario_teste():
-    return {
-        'nome': 'João Silva',
-        'email': 'joao.silva@example.com',
-        'senha': 'senha123',
-        'tipo': 'Admin',
-    }
+    data = FactoryUser().__dict__
+    data.pop('_sa_instance_state', None)
+    return data
+
+
+class FactoryEletronico(Factory):
+    class Meta:
+        model = Eletronico
+
+    numero_serie = Sequence(lambda n: f'SN{n}')
+    numero_patrimonio = Sequence(lambda n: f'00{n}')
+    nome = Sequence(lambda n: f'UFC{n}')
+    marca = 'DELL'
+    tipo = choice([
+        'Notebook',
+        'Pc',
+        'Impressora',
+        'Scanner',
+        'monitor',
+    ])
+    modelo = 'XPS 15'
+    status = choice([
+        'Interno',
+        'Externo',
+        'Em Manutenção',
+    ])
+    ip = Sequence(lambda n: f'10.0.0.{n}')
+    localizacao = 'Sala de TI'
+    descricao = LazyAttribute(lambda obj: f'Descrição de {obj.nome}')
+    centro_custo = Sequence(lambda n: f'000{n}')
 
 
 @pytest_asyncio.fixture
 async def eletronico_teste():
-    return {
-        'numero_serie': 'SN123456789',
-        'numero_patrimonio': 'PT123456789',
-        'nome': 'Notebook Dell',
-        'marca': 'Dell',
-        'tipo': 'Notebook',
-        'modelo': 'XPS 15',
-        'status': 'Interno',
-        'ip': '10.0.0.0',
-        'localizacao': 'Sala de TI',
-        'descricao': 'Notebook para uso interno da empresa',
-        'centro_custo': '0001',
-    }
+    data = FactoryEletronico().__dict__
+    data.pop('_sa_instance_state', None)
+    return data
+
+
+class FactoryContrato(Factory):
+    class Meta:
+        model = Contrato
+
+    centro_custo = Sequence(lambda n: f'000{n}')
+    descricao = LazyAttribute(lambda obj: f'Descrição de {obj.centro_custo}')
 
 
 @pytest_asyncio.fixture
 async def contrato_teste():
-    return {
-        'centro_custo': '5582',
-        'descricao': 'Contrato de manutenção de computadores',
-    }
+    data = FactoryContrato().__dict__
+    data.pop('_sa_instance_state', None)
+    return data
 
 
 @pytest_asyncio.fixture
-async def token_teste(async_client, usuario_teste):
-    await async_client.post('/users/', json=usuario_teste)
+async def login_teste(async_client, usuario_teste):
+    user = usuario_teste
+
+    await async_client.post('/users/', json=user)
 
     form_data = {
-        'username': usuario_teste['email'],
-        'password': usuario_teste['senha'],
+        'username': user['email'],
+        'password': user['senha'],
     }
     response = await async_client.post('/auth/login', data=form_data)
     assert response.status_code == HTTPStatus.OK
 
-    return response.json()['access_token']
+    return {'token': response.json()['access_token'], 'user': user}

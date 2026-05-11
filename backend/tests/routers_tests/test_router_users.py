@@ -18,7 +18,10 @@ async def test_create_user_duplicate_email(async_client, usuario_teste):
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_get_users(async_client, usuario_teste, token_teste):
+async def test_get_users(async_client, login_teste):
+
+    token_teste = login_teste['token']
+    usuario_teste = login_teste['user']
 
     response = await async_client.get(
         URL_USUARIO, headers={'Authorization': f'Bearer {token_teste}'}
@@ -34,7 +37,9 @@ async def test_get_users(async_client, usuario_teste, token_teste):
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_update_user(async_client, token_teste):
+async def test_update_user(async_client, login_teste, usuario_teste):
+
+    token_teste = login_teste['token']
 
     response = await async_client.get(
         URL_USUARIO, headers={'Authorization': f'Bearer {token_teste}'}
@@ -64,7 +69,8 @@ async def test_update_user(async_client, token_teste):
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_update_user_not_found(async_client, token_teste):
+async def test_update_user_not_found(async_client, login_teste):
+    token_teste = login_teste['token']
 
     response = await async_client.get(
         URL_USUARIO, headers={'Authorization': f'Bearer {token_teste}'}
@@ -90,7 +96,10 @@ async def test_update_user_not_found(async_client, token_teste):
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_delete_user(async_client, usuario_teste, token_teste):
+async def test_delete_user(async_client, login_teste):
+
+    token_teste = login_teste['token']
+    usuario_teste = login_teste['user']
 
     response = await async_client.get(
         URL_USUARIO, headers={'Authorization': f'Bearer {token_teste}'}
@@ -112,7 +121,8 @@ async def test_delete_user(async_client, usuario_teste, token_teste):
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_delete_user_not_found(async_client, token_teste):
+async def test_delete_user_not_found(async_client, login_teste):
+    token_teste = login_teste['token']
 
     response = await async_client.get(
         URL_USUARIO, headers={'Authorization': f'Bearer {token_teste}'}

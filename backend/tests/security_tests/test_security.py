@@ -75,9 +75,35 @@ async def test_role_required_dependency_forbidden():
 
 @pytest.mark.security
 @pytest.mark.asyncio
-async def test_get_current_user_invalid_token():
+async def test_get_current_user_invalid_token(async_db):
     with pytest.raises(HTTPException) as exc_info:
-        await Dependencies.get_current_user(token='invalid_token')
+        await Dependencies.get_current_user(
+            token='invalid_token', session=async_db
+        )
+
+    assert exc_info.value.status_code == HTTPStatus.UNAUTHORIZED
+    assert exc_info.value.detail == 'Credenciais inválidas.'
+
+
+@pytest.mark.security
+@pytest.mark.asyncio
+async def test_get_current_user_no_email_in_token(async_db):
+    token = Security().get_access_token({'sub': ''})
+
+    with pytest.raises(HTTPException) as exc_info:
+        await Dependencies.get_current_user(token=token, session=async_db)
+
+    assert exc_info.value.status_code == HTTPStatus.UNAUTHORIZED
+    assert exc_info.value.detail == 'Credenciais inválidas.'
+
+
+@pytest.mark.security
+@pytest.mark.asyncio
+async def test_get_current_user_no_user_in_token(async_db):
+    token = Security().get_access_token({'sub': 'no@email.com'})
+
+    with pytest.raises(HTTPException) as exc_info:
+        await Dependencies.get_current_user(token=token, session=async_db)
 
     assert exc_info.value.status_code == HTTPStatus.UNAUTHORIZED
     assert exc_info.value.detail == 'Credenciais inválidas.'
