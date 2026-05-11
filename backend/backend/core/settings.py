@@ -7,7 +7,6 @@ BASE_DIR = dirname(dirname(dirname(__file__)))
 
 class Settings(BaseSettings):
     ENGINE_ASYNC: str
-    ENGINE_SYNC: str
     DB_USER: str
     DB_PASSWORD: str
     DB_HOST: str
@@ -22,8 +21,5 @@ class Settings(BaseSettings):
         extra='ignore',
     )
 
-    def database_url_async(self) -> str:
+    def database_url_async(self) -> str:  # pragma: no cover
         return f'{self.ENGINE_ASYNC}://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}'
-
-    def database_url_sync(self) -> str:
-        return f'{self.ENGINE_SYNC}://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}'
