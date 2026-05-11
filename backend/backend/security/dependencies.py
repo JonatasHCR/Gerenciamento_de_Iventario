@@ -2,7 +2,7 @@ from http import HTTPStatus
 
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-from jwt import DecodeError, decode
+from jwt import DecodeError, ExpiredSignatureError, decode
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,7 +23,7 @@ class Dependencies:
                 Settings().SECRET_KEY,
                 algorithms=[Settings().ALGORITHM],
             )
-        except DecodeError:
+        except (DecodeError, ExpiredSignatureError):
             raise HTTPException(
                 status_code=HTTPStatus.UNAUTHORIZED,
                 detail='Credenciais inválidas.',

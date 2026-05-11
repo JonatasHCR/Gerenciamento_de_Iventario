@@ -36,3 +36,13 @@ class AuthService:
         )
 
         return {'access_token': access_token, 'token_type': 'Bearer'}
+
+    async def refresh_token(self, current_user):
+
+        user = current_user
+
+        access_token = self.security.get_access_token(
+            data={'sub': str(user.email)}
+        )
+
+        return {'access_token': access_token, 'token_type': 'Bearer'}
