@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from typing import Annotated
 
 from fastapi import Depends
 from fastapi.routing import APIRouter
@@ -11,11 +12,14 @@ from backend.service.user import UserService
 
 router_user = APIRouter(prefix='/users', tags=['users'])
 
+T_AsyncSession = Annotated[AsyncSession, Depends(EngineApp.get_async_session)]
+T_CurrentUser = Annotated[UserRead, Depends(Dependencies.get_current_user)]
+
 
 @router_user.get('/', status_code=HTTPStatus.OK, response_model=UserList)
 async def get_users(
-    session: AsyncSession = Depends(EngineApp.get_async_session),
-    current_user: UserRead = Depends(Dependencies.role_required('Admin')),
+    session: T_AsyncSession,
+    current_user: T_CurrentUser,
 ):
     service = UserService(session)
     users = await service.get_users()
@@ -25,7 +29,7 @@ async def get_users(
 @router_user.post('/', status_code=HTTPStatus.CREATED, response_model=UserRead)
 async def create(
     user: UserCreate,
-    session: AsyncSession = Depends(EngineApp.get_async_session),
+    session: T_AsyncSession,
 ):
     service = UserService(session)
     return await service.create(user)
@@ -37,8 +41,8 @@ async def create(
 async def update(
     user_id: int,
     user: UserCreate,
-    session: AsyncSession = Depends(EngineApp.get_async_session),
-    current_user: UserRead = Depends(Dependencies.role_required('Admin')),
+    session: T_AsyncSession,
+    current_user: T_CurrentUser,
 ):
     service = UserService(session)
     return await service.update(user_id, user)
@@ -49,8 +53,8 @@ async def update(
 )
 async def delete(
     user_id: int,
-    session: AsyncSession = Depends(EngineApp.get_async_session),
-    current_user: UserRead = Depends(Dependencies.role_required('Admin')),
+    session: T_AsyncSession,
+    current_user: T_CurrentUser,
 ):
     service = UserService(session)
     return await service.delete(user_id)

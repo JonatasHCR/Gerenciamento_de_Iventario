@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from typing import Annotated
 
 from fastapi import Depends
 from fastapi.routing import APIRouter
@@ -10,18 +11,22 @@ from backend.schemas.eletronicos import (
     EletronicoList,
     EletronicoRead,
 )
+from backend.schemas.user import UserRead
 from backend.security.dependencies import Dependencies
 from backend.service.eletronicos import EletronicoService
 
 router_eletronicos = APIRouter(prefix='/eletronicos', tags=['eletronicos'])
+
+T_AsyncSession = Annotated[AsyncSession, Depends(EngineApp.get_async_session)]
+T_CurrentUser = Annotated[UserRead, Depends(Dependencies.get_current_user)]
 
 
 @router_eletronicos.get(
     '/', status_code=HTTPStatus.OK, response_model=EletronicoList
 )
 async def get(
-    session: AsyncSession = Depends(EngineApp.get_async_session),
-    current_user=Depends(Dependencies.get_current_user),
+    session: T_AsyncSession,
+    current_user: T_CurrentUser,
 ):
     service = EletronicoService(session)
     eletronicos = await service.get()
@@ -33,8 +38,8 @@ async def get(
 )
 async def create(
     eletronico: EletronicoCreate,
-    session: AsyncSession = Depends(EngineApp.get_async_session),
-    current_user=Depends(Dependencies.get_current_user),
+    session: T_AsyncSession,
+    current_user: T_CurrentUser,
 ):
     service = EletronicoService(session)
     return await service.create(eletronico)
@@ -46,8 +51,8 @@ async def create(
 async def update(
     id: int,
     eletronico: EletronicoCreate,
-    session: AsyncSession = Depends(EngineApp.get_async_session),
-    current_user=Depends(Dependencies.get_current_user),
+    session: T_AsyncSession,
+    current_user: T_CurrentUser,
 ):
     service = EletronicoService(session)
     return await service.update(id, eletronico)
@@ -58,8 +63,8 @@ async def update(
 )
 async def delete(
     id: int,
-    session: AsyncSession = Depends(EngineApp.get_async_session),
-    current_user=Depends(Dependencies.get_current_user),
+    session: T_AsyncSession,
+    current_user: T_CurrentUser,
 ):
     service = EletronicoService(session)
     return await service.delete(id)

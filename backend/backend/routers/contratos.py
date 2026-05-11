@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from typing import Annotated
 
 from fastapi import Depends
 from fastapi.routing import APIRouter
@@ -14,11 +15,13 @@ from backend.service.contratos import ContratoService
 
 router_contratos = APIRouter(prefix='/contratos', tags=['contratos'])
 
+T_AsyncSession = Annotated[AsyncSession, Depends(EngineApp.get_async_session)]
+
 
 @router_contratos.get(
     '/', status_code=HTTPStatus.OK, response_model=ContratoList
 )
-async def get(session: AsyncSession = Depends(EngineApp.get_async_session)):
+async def get(session: T_AsyncSession):
     service = ContratoService(session)
     contratos = await service.get()
     return {'contratos': contratos}
@@ -29,7 +32,7 @@ async def get(session: AsyncSession = Depends(EngineApp.get_async_session)):
 )
 async def create(
     contrato: ContratoCreate,
-    session: AsyncSession = Depends(EngineApp.get_async_session),
+    session: T_AsyncSession,
 ):
     service = ContratoService(session)
     return await service.create(contrato)
@@ -43,7 +46,7 @@ async def create(
 async def update(
     centro_custo: str,
     contrato: ContratoCreate,
-    session: AsyncSession = Depends(EngineApp.get_async_session),
+    session: T_AsyncSession,
 ):
     service = ContratoService(session)
     return await service.update(centro_custo, contrato)
@@ -54,7 +57,7 @@ async def update(
 )
 async def delete(
     centro_custo: str,
-    session: AsyncSession = Depends(EngineApp.get_async_session),
+    session: T_AsyncSession,
 ):
     service = ContratoService(session)
     return await service.delete(centro_custo)
