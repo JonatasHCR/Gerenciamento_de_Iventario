@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -7,12 +9,16 @@ class EletronicoCreate(BaseModel):
         ..., description='Número de patrimônio do eletrônico'
     )
     nome: str = Field(..., description='Nome do eletrônico')
-    marca: str = Field(..., description='Marca do eletrônico')
-    modelo: str = Field(..., description='Modelo do eletrônico')
-    tipo: str = Field(..., description='Tipo do eletrônico')
+    marca: str | None = Field(None, description='Marca do eletrônico')
+    modelo: str | None = Field(None, description='Modelo do eletrônico')
+    tipo: Literal[
+        'Computador', 'Notbook', 'Monitor', 'Impressora', 'Scanner'
+    ] = Field(..., description='Tipo do eletrônico')
     status: str = Field(..., description='Status do eletrônico')
-    ip: str = Field(..., description='Endereço IP do eletrônico')
-    localizacao: str = Field(..., description='Localização do eletrônico')
+    ip: str | None = Field(None, description='Endereço IP do eletrônico')
+    localizacao: str | None = Field(
+        None, description='Localização do eletrônico'
+    )
     descricao: str | None = Field(None, description='Descrição do eletrônico')
     centro_custo: str = Field(
         ...,
@@ -28,3 +34,7 @@ class EletronicoList(BaseModel):
     eletronicos: list[EletronicoRead] = Field(
         ..., description='Lista de eletrônicos'
     )
+    total: int = Field(..., description='Total de registros (sem paginação)')
+    page: int = Field(..., description='Página atual')
+    page_size: int = Field(..., description='Itens por página')
+    pages: int = Field(..., description='Total de páginas')

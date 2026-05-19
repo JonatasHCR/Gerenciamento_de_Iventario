@@ -10,7 +10,12 @@ class ContratoCreate(BaseModel):
 
 
 class ContratoRead(ContratoCreate):
-    pass
+    gestor_nome: str | None = Field(
+        None, description='Nome do Gestor do CC (se houver)'
+    )
+    total_membros: int = Field(
+        0, description='Total de usuários associados ao CC'
+    )
 
 
 class ContratoList(BaseModel):
