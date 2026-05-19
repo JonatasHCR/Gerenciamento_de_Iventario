@@ -1,29 +1,95 @@
 from http import HTTPStatus
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.model.associacao_user_contrato import AssociacaoUserContrato
 from backend.model.contratos import Contrato
+from backend.model.user import User
+from backend.schemas.associacoes import AssociacaoUserContratoCreate
 from backend.schemas.contratos import ContratoCreate
+from backend.security.dependencies import UserContext
+from backend.service.associacoes import AssociacaoUserContratoService
 
 
 class ContratoService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get(self):
-        result = await self.session.execute(select(Contrato))
-        return result.scalars().all()
+    async def get(self, ctx: UserContext):  # noqa: ARG002
+        """
+        Todos os usuários autenticados veem todos os CCs (com nome do
+        Gestor + total de membros) para poder solicitar entrada.
+        As permissões de write continuam restritas em
+        create/update/delete. `ctx` é mantido na assinatura por
+        consistência com os demais services e para reforçar a
+        obrigatoriedade da autenticação no nível do router.
+        """
+        contratos = (
+            await self.session.execute(select(Contrato))
+        ).scalars().all()
 
-    async def create(self, contrato: ContratoCreate):
-        novo = Contrato(**contrato.model_dump())
-        self.session.add(novo)
-        await self.session.commit()
-        await self.session.refresh(novo)
+        # Total de membros por CC
+        totais_q = await self.session.execute(
+            select(
+                AssociacaoUserContrato.centro_custo,
+                func.count(AssociacaoUserContrato.user_id),
+            ).group_by(AssociacaoUserContrato.centro_custo)
+        )
+        totais = {cc: n for cc, n in totais_q.all()}
+
+        # Nome do Gestor de cada CC (pega o primeiro caso haja >1)
+        gestores_q = await self.session.execute(
+            select(AssociacaoUserContrato.centro_custo, User.nome)
+            .join(User, User.id == AssociacaoUserContrato.user_id)
+            .where(AssociacaoUserContrato.ocupacao == 'Gestor')
+        )
+        gestores: dict[str, str] = {}
+        for cc, nome in gestores_q.all():
+            gestores.setdefault(cc, nome)
+
+        return [
+            {
+                'centro_custo': c.centro_custo,
+                'descricao': c.descricao,
+                'gestor_nome': gestores.get(c.centro_custo),
+                'total_membros': totais.get(c.centro_custo, 0),
+            }
+            for c in contratos
+        ]
+
+    async def create(self, contrato: ContratoCreate, ctx: UserContext):
+        """Apenas Admin ou Gestor"""
+        ctx.assert_write('Gestor')
+        try:
+            novo = Contrato(**contrato.model_dump())
+            self.session.add(novo)
+            await self.session.commit()
+            await self.session.refresh(novo)
+        except IntegrityError:
+            raise HTTPException(
+                status_code=HTTPStatus.CONFLICT,
+                detail='numero de centro de custo já existe',
+            )
+
+        service_associacao = AssociacaoUserContratoService(self.session)
+        data = AssociacaoUserContratoCreate(
+            user_id=ctx.user.id,
+            centro_custo=novo.centro_custo,
+            ocupacao='Gestor',
+        )
+        await service_associacao.create(data, ctx)
+
         return novo
 
-    async def update(self, centro_custo: str, contrato: ContratoCreate):
+    async def update(
+        self, centro_custo: str, contrato: ContratoCreate, ctx: UserContext
+    ):
+        """Apenas Admin ou Gestor do próprio CC (por ocupação)."""
+        ctx.assert_cc_role(centro_custo, 'Gestor')
+
         result = await self.session.execute(
             select(Contrato).where(Contrato.centro_custo == centro_custo)
         )
@@ -33,8 +99,8 @@ class ContratoService:
                 status_code=HTTPStatus.NOT_FOUND,
                 detail='Contrato não encontrado.',
             )
-        data = contrato.model_dump(exclude_unset=True)
 
+        data = contrato.model_dump(exclude_unset=True)
         for key, value in data.items():
             setattr(existing, key, value)
 
@@ -42,7 +108,10 @@ class ContratoService:
         await self.session.refresh(existing)
         return existing
 
-    async def delete(self, centro_custo: str):
+    async def delete(self, centro_custo: str, ctx: UserContext):
+        """Apenas Admin ou Gestor do próprio CC (por ocupação)."""
+        ctx.assert_cc_role(centro_custo, 'Gestor')
+
         result = await self.session.execute(
             select(Contrato).where(Contrato.centro_custo == centro_custo)
         )
