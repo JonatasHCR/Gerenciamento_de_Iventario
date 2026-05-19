@@ -6,23 +6,23 @@ from fastapi.routing import APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.engine import EngineApp
-from backend.schemas.user import UserCreate, UserList, UserRead
-from backend.security.dependencies import Dependencies
+from backend.schemas.user import UserCreate, UserList, UserRead, UserUpdate
+from backend.security.dependencies import Dependencies, UserContext
 from backend.service.user import UserService
 
 router_user = APIRouter(prefix='/users', tags=['users'])
 
 T_AsyncSession = Annotated[AsyncSession, Depends(EngineApp.get_async_session)]
-T_CurrentUser = Annotated[UserRead, Depends(Dependencies.get_current_user)]
+T_UserContext = Annotated[UserContext, Depends(Dependencies.get_user_context)]
 
 
 @router_user.get('/', status_code=HTTPStatus.OK, response_model=UserList)
 async def get_users(
     session: T_AsyncSession,
-    current_user: T_CurrentUser,
+    ctx: T_UserContext,
 ):
     service = UserService(session)
-    users = await service.get_users()
+    users = await service.get_users(ctx)
     return {'users': users}
 
 
@@ -31,8 +31,27 @@ async def create(
     user: UserCreate,
     session: T_AsyncSession,
 ):
+    """
+    Auto-registro público: cria o usuário sempre como Funcionario.
+    Admin/TI devem usar o endpoint autenticado
+    """
     service = UserService(session)
-    return await service.create(user)
+    return await service.create(user, ctx=None)
+
+
+@router_user.post(
+    '/admin',
+    status_code=HTTPStatus.CREATED,
+    response_model=UserRead,
+)
+async def create_admin(
+    user: UserCreate,
+    session: T_AsyncSession,
+    ctx: T_UserContext,
+):
+    """Criação de usuário com tipo específico"""
+    service = UserService(session)
+    return await service.create(user, ctx=ctx)
 
 
 @router_user.put(
@@ -40,12 +59,12 @@ async def create(
 )
 async def update(
     user_id: int,
-    user: UserCreate,
+    user: UserUpdate,
     session: T_AsyncSession,
-    current_user: T_CurrentUser,
+    ctx: T_UserContext,
 ):
     service = UserService(session)
-    return await service.update(user_id, user)
+    return await service.update(user_id, user, ctx)
 
 
 @router_user.delete(
@@ -54,7 +73,7 @@ async def update(
 async def delete(
     user_id: int,
     session: T_AsyncSession,
-    current_user: T_CurrentUser,
+    ctx: T_UserContext,
 ):
     service = UserService(session)
-    return await service.delete(user_id)
+    return await service.delete(user_id, ctx)

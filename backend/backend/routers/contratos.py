@@ -11,19 +11,24 @@ from backend.schemas.contratos import (
     ContratoList,
     ContratoRead,
 )
+from backend.security.dependencies import Dependencies, UserContext
 from backend.service.contratos import ContratoService
 
 router_contratos = APIRouter(prefix='/contratos', tags=['contratos'])
 
 T_AsyncSession = Annotated[AsyncSession, Depends(EngineApp.get_async_session)]
+T_UserContext = Annotated[UserContext, Depends(Dependencies.get_user_context)]
 
 
 @router_contratos.get(
     '/', status_code=HTTPStatus.OK, response_model=ContratoList
 )
-async def get(session: T_AsyncSession):
+async def get(
+    session: T_AsyncSession,
+    ctx: T_UserContext,
+):
     service = ContratoService(session)
-    contratos = await service.get()
+    contratos = await service.get(ctx)
     return {'contratos': contratos}
 
 
@@ -33,9 +38,10 @@ async def get(session: T_AsyncSession):
 async def create(
     contrato: ContratoCreate,
     session: T_AsyncSession,
+    ctx: T_UserContext,
 ):
     service = ContratoService(session)
-    return await service.create(contrato)
+    return await service.create(contrato, ctx)
 
 
 @router_contratos.put(
@@ -47,9 +53,10 @@ async def update(
     centro_custo: str,
     contrato: ContratoCreate,
     session: T_AsyncSession,
+    ctx: T_UserContext,
 ):
     service = ContratoService(session)
-    return await service.update(centro_custo, contrato)
+    return await service.update(centro_custo, contrato, ctx)
 
 
 @router_contratos.delete(
@@ -58,6 +65,7 @@ async def update(
 async def delete(
     centro_custo: str,
     session: T_AsyncSession,
+    ctx: T_UserContext,
 ):
     service = ContratoService(session)
-    return await service.delete(centro_custo)
+    return await service.delete(centro_custo, ctx)
