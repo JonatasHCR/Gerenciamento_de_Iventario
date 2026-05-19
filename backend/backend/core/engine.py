@@ -6,24 +6,27 @@ from sqlalchemy.ext.asyncio import (
 
 from backend.core.settings import Settings
 
+_settings = Settings()
+
 
 class EngineApp:  # pragma: no cover
-    def __init__(self):
-        self.DATABASE_URL_ASYNC = Settings().database_url_async()
+    DATABASE_URL_ASYNC = _settings.database_url_async()
 
-        self.async_engine = create_async_engine(
-            self.DATABASE_URL_ASYNC,
-            echo=True,
-        )
+    engine = create_async_engine(
+        DATABASE_URL_ASYNC,
+        echo=_settings.DEBUG,
+    )
 
-    async def get_async_session(self):
+    SessionLocal = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
 
-        SessionLocal = async_sessionmaker(
-            bind=self.async_engine,
-            class_=AsyncSession,
-            expire_on_commit=False,
-        )
-        async with SessionLocal() as session:
+    @staticmethod
+    async def get_async_session():
+
+        async with EngineApp.SessionLocal() as session:
             try:
                 yield session
                 await session.commit()
