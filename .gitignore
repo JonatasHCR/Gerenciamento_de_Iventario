@@ -10,7 +10,32 @@
 
 .vscode
 
+### Claude ###
+.claude/
+
+### Secrets / env ###
+# Nunca comite arquivos .env reais. Use *.env.example como referência.
+.env
+.env.*
+!.env.example
+!*.env.example
+# Padrões alternativos
+*.env
+!*.env.example
+
 ### TEMP ###
 Configs.md
-frontend
 backend_fail
+
+### Python ###
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+
+### SQLite dev ###
+*.db
+*.sqlite
+*.sqlite3
