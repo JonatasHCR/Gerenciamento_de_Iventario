@@ -18,13 +18,13 @@ class Eletronico(Base):
     numero_serie = Column(String(100), nullable=False, unique=True)
     numero_patrimonio = Column(String(100), nullable=False, unique=True)
     nome = Column(String(255), nullable=False)
-    marca = Column(String(100), nullable=False)
+    marca = Column(String(100))
     tipo = Column(String(100), nullable=False)
-    modelo = Column(String(100), nullable=False)
+    modelo = Column(String(100))
     status = Column(String(50), nullable=False)
-    ip = Column(String(15), nullable=False, unique=True)
-    localizacao = Column(String(255), nullable=False)
-    descricao = Column(Text, nullable=True)
+    ip = Column(String(15))
+    localizacao = Column(String(255))
+    descricao = Column(Text)
     centro_custo = Column(String(4), nullable=False)
 
     __table_args__ = (
@@ -38,5 +38,10 @@ class Eletronico(Base):
         CheckConstraint(
             "status IN ('Interno', 'Externo', 'Em Manutenção')",
             name='check_status_valid',
+        ),
+        CheckConstraint(
+            "tipo IN ('Computador', 'Notbook', 'Monitor', 'Impressora', "
+            "'Scanner')",
+            name='check_tipo_eletronico_valid',
         ),
     )
