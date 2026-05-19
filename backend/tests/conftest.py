@@ -12,11 +12,16 @@ from sqlalchemy.pool import StaticPool
 from backend.app import app
 from backend.core.database import Base
 from backend.core.engine import EngineApp
+from backend.core.limiter import limiter
 from backend.model.contratos import Contrato
 from backend.model.eletronicos import Eletronico
 from backend.model.user import User
+from backend.security.security import Security
 
-DATABASE_URL = 'sqlite+aiosqlite://'
+# Desabilita rate-limit em testes (cada teste faz vários logins).
+limiter.enabled = False
+
+DATABASE_URL = 'sqlite+aiosqlite:///'
 BASE_URL = 'http://127.0.0.1:8000'
 
 
@@ -89,12 +94,6 @@ class FactoryUser(Factory):
     email = LazyAttribute(lambda obj: f'{obj.nome}@teste.com')
     senha = LazyAttribute(lambda obj: f'{obj.nome}123')
     tipo = 'Admin'
-    #     'Admin',
-    #     'Funcionario',
-    #     'Gestor',
-    #     'Subgestor',
-    #     'Tecnico_TI',
-    # ])
 
 
 @pytest_asyncio.fixture
@@ -102,6 +101,16 @@ async def usuario_teste():
     data = FactoryUser().__dict__
     data.pop('_sa_instance_state', None)
     return data
+
+
+_TIPOS_ELETRONICO_VALIDOS = [
+    'Computador',
+    'Notbook',
+    'Monitor',
+    'Impressora',
+    'Scanner',
+]
+_STATUSES_ELETRONICO_VALIDOS = ['Interno', 'Externo', 'Em Manutenção']
 
 
 class FactoryEletronico(Factory):
@@ -112,19 +121,11 @@ class FactoryEletronico(Factory):
     numero_patrimonio = Sequence(lambda n: f'00{n}')
     nome = Sequence(lambda n: f'UFC{n}')
     marca = 'DELL'
-    tipo = choice([
-        'Notebook',
-        'Pc',
-        'Impressora',
-        'Scanner',
-        'monitor',
-    ])
+    # LazyAttribute para reavaliar a cada instância (choice no nível
+    # da classe é avaliado uma única vez, criando flakiness)
+    tipo = LazyAttribute(lambda _: choice(_TIPOS_ELETRONICO_VALIDOS))
     modelo = 'XPS 15'
-    status = choice([
-        'Interno',
-        'Externo',
-        'Em Manutenção',
-    ])
+    status = LazyAttribute(lambda _: choice(_STATUSES_ELETRONICO_VALIDOS))
     ip = Sequence(lambda n: f'10.0.0.{n}')
     localizacao = 'Sala de TI'
     descricao = LazyAttribute(lambda obj: f'Descrição de {obj.nome}')
@@ -154,11 +155,26 @@ async def contrato_teste():
 
 
 @pytest_asyncio.fixture
-async def login_teste(async_client, usuario_teste):
+async def login_teste(async_client, async_db, usuario_teste):
+    """
+    Cria o usuário Admin diretamente no banco (bypassando a restrição do
+    endpoint público que força tipo=Funcionario) e retorna o token de acesso.
+    """
     user = usuario_teste
+    security = Security()
 
-    await async_client.post('/users/', json=user)
+    # Inserir Admin diretamente no banco
+    user_db = User(
+        nome=user['nome'],
+        email=user['email'],
+        senha=security.get_senha_hash(user['senha']),
+        tipo=user['tipo'],  # 'Admin'
+    )
+    async_db.add(user_db)
+    await async_db.commit()
+    await async_db.refresh(user_db)
 
+    # Fazer login via API para obter token
     form_data = {
         'username': user['email'],
         'password': user['senha'],
