@@ -12,6 +12,7 @@ from backend.schemas.associacoes import AssociacaoUserContratoCreate
 from backend.schemas.contratos import ContratoCreate
 from backend.security.dependencies import UserContext
 from backend.service.associacoes import AssociacaoUserContratoService
+from backend.service.audit_log import log as audit_log
 
 
 class ContratoService:
@@ -66,6 +67,18 @@ class ContratoService:
         try:
             novo = Contrato(**contrato.model_dump())
             self.session.add(novo)
+            await self.session.flush()
+            audit_log(
+                self.session,
+                action='contrato.create',
+                user_id=ctx.user.id,
+                target_type='contrato',
+                target_id=None,
+                payload={
+                    'centro_custo': novo.centro_custo,
+                    'descricao': novo.descricao,
+                },
+            )
             await self.session.commit()
             await self.session.refresh(novo)
         except IntegrityError:
@@ -101,8 +114,22 @@ class ContratoService:
             )
 
         data = contrato.model_dump(exclude_unset=True)
+        antes = {'descricao': existing.descricao}
         for key, value in data.items():
             setattr(existing, key, value)
+
+        audit_log(
+            self.session,
+            action='contrato.update',
+            user_id=ctx.user.id,
+            target_type='contrato',
+            target_id=None,
+            payload={
+                'centro_custo': centro_custo,
+                'antes': antes,
+                'depois': data,
+            },
+        )
 
         await self.session.commit()
         await self.session.refresh(existing)
@@ -121,6 +148,17 @@ class ContratoService:
                 status_code=HTTPStatus.NOT_FOUND,
                 detail='Contrato não encontrado.',
             )
+        audit_log(
+            self.session,
+            action='contrato.delete',
+            user_id=ctx.user.id,
+            target_type='contrato',
+            target_id=None,
+            payload={
+                'centro_custo': contrato.centro_custo,
+                'descricao': contrato.descricao,
+            },
+        )
         await self.session.delete(contrato)
         await self.session.commit()
         return contrato

@@ -11,6 +11,7 @@ from backend.model.eletronicos import Eletronico
 from backend.model.user import User
 from backend.schemas.eletronicos import EletronicoCreate
 from backend.security.dependencies import UserContext
+from backend.service.tipo_eletronico import TipoEletronicoService
 
 CAMPOS_BUSCA_VALIDOS = {
     'todos',
@@ -230,6 +231,11 @@ class EletronicoService:
                 detail='Sem permissão neste centro de custo.',
             )
 
+        # Valida o tipo contra o catálogo dinâmico
+        await TipoEletronicoService(self.session).assert_nome_valido(
+            eletronico.tipo
+        )
+
         novo = Eletronico(**eletronico.model_dump())
         try:
             self.session.add(novo)
@@ -259,6 +265,12 @@ class EletronicoService:
     ):
         existing = await self._get_by_id(eletronico_id)
         await self._assert_ownership(existing, ctx)
+
+        # Valida o tipo contra o catálogo dinâmico
+        if eletronico.tipo != existing.tipo:
+            await TipoEletronicoService(self.session).assert_nome_valido(
+                eletronico.tipo
+            )
 
         try:
             data = eletronico.model_dump(exclude_unset=True)

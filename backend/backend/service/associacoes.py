@@ -13,6 +13,7 @@ from backend.schemas.associacoes import (
     AssociacaoUserEletronicoCreate,
 )
 from backend.security.dependencies import UserContext
+from backend.service.audit_log import log as audit_log
 
 # ─── AssociacaoUserContratoService
 
@@ -95,6 +96,19 @@ class AssociacaoUserContratoService:
         nova = AssociacaoUserContrato(**data.model_dump())
         try:
             self.session.add(nova)
+            audit_log(
+                self.session,
+                action='cc.membro.add',
+                user_id=ctx.user.id,
+                target_type='contrato',
+                target_id=None,
+                payload={
+                    'centro_custo': data.centro_custo,
+                    'usuario_id': data.user_id,
+                    'ocupacao': data.ocupacao,
+                    'via_criacao_cc': not cc_ja_tem_membros,
+                },
+            )
             await self.session.commit()
             await self.session.refresh(nova)
             return nova
@@ -120,9 +134,28 @@ class AssociacaoUserContratoService:
         ctx.assert_cc_role(centro_custo, 'Gestor')
 
         assoc = await self.get_by_ids(user_id, centro_custo)
+        ocupacao_antes = assoc.ocupacao
         try:
-            for key, value in data.model_dump(exclude_unset=True).items():
+            payload_dict = data.model_dump(exclude_unset=True)
+            for key, value in payload_dict.items():
                 setattr(assoc, key, value)
+            if (
+                'ocupacao' in payload_dict
+                and payload_dict['ocupacao'] != ocupacao_antes
+            ):
+                audit_log(
+                    self.session,
+                    action='cc.membro.ocupacao_change',
+                    user_id=ctx.user.id,
+                    target_type='contrato',
+                    target_id=None,
+                    payload={
+                        'centro_custo': centro_custo,
+                        'usuario_id': user_id,
+                        'de': ocupacao_antes,
+                        'para': payload_dict['ocupacao'],
+                    },
+                )
             await self.session.commit()
             await self.session.refresh(assoc)
             return assoc
@@ -177,6 +210,20 @@ class AssociacaoUserContratoService:
                     ),
                 )
 
+        audit_log(
+            self.session,
+            action=(
+                'cc.membro.self_remove' if is_self else 'cc.membro.remove'
+            ),
+            user_id=ctx.user.id,
+            target_type='contrato',
+            target_id=None,
+            payload={
+                'centro_custo': centro_custo,
+                'usuario_id': user_id,
+                'ocupacao': assoc.ocupacao,
+            },
+        )
         await self.session.delete(assoc)
         await self.session.commit()
         return assoc
