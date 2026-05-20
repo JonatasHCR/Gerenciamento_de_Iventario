@@ -13,6 +13,8 @@ import {
   LogOut,
   FileText,
   BarChart3,
+  Tags,
+  History,
 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { getSolicitacoes } from '@/lib/api/solicitacoes'
@@ -42,6 +44,8 @@ const NAV = [
   },
   { href: '/usuarios', label: 'Usuários', icon: Users },
   { href: '/solicitacoes', label: 'Solicitações', icon: ClipboardList },
+  { href: '/tipos', label: 'Tipos', icon: Tags, roles: ['Admin'] },
+  { href: '/auditoria', label: 'Auditoria', icon: History, roles: ['Admin'] },
 ] as const
 
 export function MobileSidebar() {
@@ -100,6 +104,9 @@ export function MobileSidebar() {
               const isAdminTI =
                 user?.tipo === 'Admin' || user?.tipo === 'Tecnico_TI'
               if (!isAdminTI && !ehGestorOuSub) return null
+            }
+            if (href === '/tipos' || href === '/auditoria') {
+              if (user?.tipo !== 'Admin') return null
             }
             const active = pathname === href
             return (

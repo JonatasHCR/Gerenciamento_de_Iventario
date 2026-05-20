@@ -14,6 +14,8 @@ import {
   LogOut,
   FileText,
   BarChart3,
+  Tags,
+  History,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -55,6 +57,18 @@ const NAV = [
   },
   { href: '/usuarios', label: 'Usuários', icon: Users },
   { href: '/solicitacoes', label: 'Solicitações', icon: ClipboardList },
+  {
+    href: '/tipos',
+    label: 'Tipos',
+    icon: Tags,
+    roles: ['Admin'],
+  },
+  {
+    href: '/auditoria',
+    label: 'Auditoria',
+    icon: History,
+    roles: ['Admin'],
+  },
 ] as const
 
 const POLL_MS = 5000
@@ -167,6 +181,10 @@ export function Sidebar() {
             const isAdminTI =
               user?.tipo === 'Admin' || user?.tipo === 'Tecnico_TI'
             if (!isAdminTI && !ehGestorOuSub) return null
+          }
+          // /tipos e /auditoria: restritos pelo array roles
+          if (href === '/tipos' || href === '/auditoria') {
+            if (user?.tipo !== 'Admin') return null
           }
           const active = pathname === href
           return (
