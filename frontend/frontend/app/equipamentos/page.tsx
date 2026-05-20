@@ -346,9 +346,9 @@ export default function EquipamentosPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">Equipamentos</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {(user?.tipo === 'Admin' ||
             user?.tipo === 'Tecnico_TI' ||
             user?.tipo === 'Gestor' ||

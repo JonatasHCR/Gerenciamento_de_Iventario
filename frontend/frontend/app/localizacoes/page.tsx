@@ -102,7 +102,7 @@ export default function LocalizacoesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Localizações</h1>
           <p className="text-sm text-muted-foreground">
@@ -111,13 +111,13 @@ export default function LocalizacoesPage() {
             consolida.
           </p>
         </div>
-        <Button size="sm" onClick={abrirNova}>
+        <Button size="sm" onClick={abrirNova} className="shrink-0">
           <Plus className="mr-1 h-4 w-4" /> Nova localização
         </Button>
       </div>
 
       <div className="overflow-x-auto rounded-md border">
-        <table className="w-full min-w-[500px] text-sm">
+        <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-2 text-left font-medium">Nome</th>
