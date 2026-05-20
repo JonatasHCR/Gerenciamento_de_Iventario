@@ -128,13 +128,29 @@ class AssociacaoUserContratoService:
     ):
         """
         - Admin → qualquer.
-        - Gestor do CC → permitido.
+        - Gestor do CC → permitido, **exceto** mudar o cargo de outro
+          Gestor (mesmo dentro do próprio CC).
         - Demais → 403.
         """
         ctx.assert_cc_role(centro_custo, 'Gestor')
 
         assoc = await self.get_by_ids(user_id, centro_custo)
         ocupacao_antes = assoc.ocupacao
+
+        # Gestor não pode mexer no cargo de outro Gestor.
+        # Admin (is_privileged) bypassa.
+        if (
+            not ctx.is_privileged
+            and ocupacao_antes == 'Gestor'
+            and ctx.user.id != user_id
+        ):
+            raise HTTPException(
+                status_code=HTTPStatus.FORBIDDEN,
+                detail=(
+                    'Gestor não pode alterar o cargo de outro Gestor. '
+                    'Apenas o Admin pode rebaixar/promover Gestores.'
+                ),
+            )
         try:
             payload_dict = data.model_dump(exclude_unset=True)
             for key, value in payload_dict.items():

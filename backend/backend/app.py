@@ -17,6 +17,7 @@ from backend.routers.auth import router_auth
 from backend.routers.cessao import router_cessao
 from backend.routers.contratos import router_contratos
 from backend.routers.eletronicos import router_eletronicos
+from backend.routers.localizacao import router_localizacoes
 from backend.routers.solicitacoes import router_solicitacoes
 from backend.routers.tipo_eletronico import router_tipos_eletronico
 from backend.routers.user import router_user
@@ -77,6 +78,7 @@ app.include_router(router_assoc_eletronico)
 app.include_router(router_solicitacoes)
 app.include_router(router_cessao)
 app.include_router(router_tipos_eletronico)
+app.include_router(router_localizacoes)
 app.include_router(router_audit_log)
 app.include_router(router_auth)
 
