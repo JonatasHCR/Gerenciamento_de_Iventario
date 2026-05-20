@@ -35,6 +35,20 @@ export async function deleteAssociacaoContrato(
   )
 }
 
+export async function updateAssociacaoContrato(
+  user_id: number,
+  centro_custo: string,
+  ocupacao: 'Gestor' | 'Subgestor' | 'Funcionario',
+): Promise<AssociacaoUserContrato> {
+  return apiFetch<AssociacaoUserContrato>(
+    `/associacoes/contratos/${user_id}/${centro_custo}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ user_id, centro_custo, ocupacao }),
+    },
+  )
+}
+
 export async function getAssociacoesEletronico(): Promise<
   AssociacaoUserEletronico[]
 > {
