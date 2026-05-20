@@ -552,7 +552,7 @@ export default function EquipamentosPage() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editando ? 'Editar equipamento' : 'Novo equipamento'}</DialogTitle>
           </DialogHeader>

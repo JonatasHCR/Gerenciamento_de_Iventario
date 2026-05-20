@@ -312,7 +312,7 @@ export default function CessoesPage() {
         open={devolverCessaoState !== null}
         onOpenChange={(o) => !o && setDevolverCessaoState(null)}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
               Devolver cessão #{devolverCessaoState?.id}
