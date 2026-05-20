@@ -15,6 +15,7 @@ from backend.core.engine import EngineApp
 from backend.core.limiter import limiter
 from backend.model.contratos import Contrato
 from backend.model.eletronicos import Eletronico
+from backend.model.tipo_eletronico import TipoEletronico
 from backend.model.user import User
 from backend.security.security import Security
 
@@ -56,6 +57,13 @@ async def async_db(async_engine):
         session = AsyncSession(bind=conn, expire_on_commit=False)
 
         nested = await conn.begin_nested()  # SAVEPOINT
+
+        # Seed do catálogo de tipos — mesmos da migration de produção
+        for nome in [
+            'Computador', 'Notbook', 'Monitor', 'Impressora', 'Scanner',
+        ]:
+            session.add(TipoEletronico(nome=nome, ativo=True))
+        await session.flush()
 
         try:
             yield session
