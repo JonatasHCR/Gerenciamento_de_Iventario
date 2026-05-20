@@ -8,6 +8,12 @@ import { Input } from '@/components/ui/input'
 interface Option {
   value: string
   label: string
+  /**
+   * Texto usado pra filtragem quando diferente do label. Útil quando
+   * o label é só o nome (visualização limpa) mas a busca deve casar
+   * com nome + email + outros campos.
+   */
+  searchKey?: string
 }
 
 interface Props {
@@ -40,8 +46,9 @@ export function SearchableSelect({
   }, [])
 
   const selected = options.find((o) => o.value === value)
+  const term = search.toLowerCase()
   const filtered = options.filter((o) =>
-    o.label.toLowerCase().includes(search.toLowerCase()),
+    (o.searchKey ?? o.label).toLowerCase().includes(term),
   )
 
   return (

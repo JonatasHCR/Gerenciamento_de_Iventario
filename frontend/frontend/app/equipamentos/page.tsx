@@ -19,6 +19,11 @@ import {
 } from '@/lib/api/associacoes'
 import { getUsers } from '@/lib/api/users'
 import { getTipos, type TipoEletronico } from '@/lib/api/tipos'
+import {
+  getLocalizacoes,
+  createLocalizacao,
+  type Localizacao,
+} from '@/lib/api/localizacoes'
 import type {
   Eletronico,
   Contrato,
@@ -28,6 +33,7 @@ import type {
 } from '@/types/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { RequiredMark } from '@/components/ui/required-mark'
 import { Badge } from '@/components/ui/badge'
@@ -120,6 +126,9 @@ export default function EquipamentosPage() {
   const [assocsCC, setAssocsCC] = useState<AssociacaoUserContrato[]>([])
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [tiposCatalogo, setTiposCatalogo] = useState<TipoEletronico[]>([])
+  const [localizacoes, setLocalizacoes] = useState<Localizacao[]>([])
+  const [novaLocOpen, setNovaLocOpen] = useState(false)
+  const [novaLocNome, setNovaLocNome] = useState('')
 
   // Debounce do search
   useEffect(() => {
@@ -160,7 +169,24 @@ export default function EquipamentosPage() {
     getUsers().then(setAllUsers).catch(() => {})
     // Catálogo dinâmico — só os ativos pra alimentar o select
     getTipos(true).then(setTiposCatalogo).catch(() => {})
+    getLocalizacoes().then(setLocalizacoes).catch(() => {})
   }, [])
+
+  async function handleCriarLocalizacao(e: React.FormEvent) {
+    e.preventDefault()
+    const nome = novaLocNome.trim()
+    if (!nome) return
+    try {
+      const nova = await createLocalizacao({ nome })
+      setLocalizacoes((prev) => [...prev, nova])
+      setForm((f) => ({ ...f, localizacao: nova.nome }))
+      setNovaLocNome('')
+      setNovaLocOpen(false)
+      toast.success(`Localização "${nova.nome}" criada.`)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro.')
+    }
+  }
 
   function reloadAssocs() {
     getAssociacoesEletronico().then(setAssocsEl).catch(() => {})
@@ -538,7 +564,6 @@ export default function EquipamentosPage() {
                 ['numero_patrimonio', 'Nº Patrimônio', true],
                 ['marca', 'Marca', false],
                 ['modelo', 'Modelo', false],
-                ['localizacao', 'Localização', false],
               ] as [keyof typeof EMPTY, string, boolean][]
             ).map(([field, label, required]) => (
               <div key={field} className="space-y-1">
@@ -547,7 +572,16 @@ export default function EquipamentosPage() {
                 </Label>
                 <Input
                   value={form[field]}
-                  onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      // Nº Série sempre em maiúsculas, independente do CapsLock
+                      [field]:
+                        field === 'numero_serie'
+                          ? e.target.value.toUpperCase()
+                          : e.target.value,
+                    }))
+                  }
                   required={required}
                 />
               </div>
@@ -569,6 +603,33 @@ export default function EquipamentosPage() {
                 />
                 Equipamento sem IP
               </label>
+            </div>
+            <div className="space-y-1">
+              <Label>Localização</Label>
+              <div className="flex gap-1">
+                <div className="flex-1">
+                  <SearchableSelect
+                    value={form.localizacao}
+                    onChange={(v) => setForm((f) => ({ ...f, localizacao: v }))}
+                    options={localizacoes.map((l) => ({
+                      value: l.nome,
+                      label: l.nome,
+                      searchKey: `${l.nome} ${l.descricao ?? ''}`,
+                    }))}
+                    placeholder="Selecione…"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setNovaLocOpen(true)}
+                  title="Criar nova localização"
+                  className="shrink-0"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div className="space-y-1">
               <Label>Tipo <RequiredMark /></Label>
@@ -633,7 +694,8 @@ export default function EquipamentosPage() {
                     .filter((u) => userIdsNoCC.includes(u.id))
                     .map((u) => ({
                       value: String(u.id),
-                      label: `${u.nome} (${u.email})`,
+                      label: u.nome,
+                      searchKey: `${u.nome} ${u.email}`,
                     }))
                   return (
                     <SearchableSelect
@@ -652,7 +714,13 @@ export default function EquipamentosPage() {
             )}
             <div className="space-y-1 sm:col-span-2">
               <Label>Descrição</Label>
-              <Input value={form.descricao} onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))} />
+              <Textarea
+                value={form.descricao}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, descricao: e.target.value }))
+                }
+                rows={3}
+              />
             </div>
             <div className="sm:col-span-2">
               <Button type="submit" className="w-full">{editando ? 'Salvar' : 'Criar'}</Button>
@@ -682,7 +750,11 @@ export default function EquipamentosPage() {
                     .map((a) => a.user_id)
                   return allUsers
                     .filter((u) => userIdsNoCC.includes(u.id))
-                    .map((u) => ({ value: String(u.id), label: `${u.nome} (${u.email})` }))
+                    .map((u) => ({
+                      value: String(u.id),
+                      label: u.nome,
+                      searchKey: `${u.nome} ${u.email}`,
+                    }))
                 })()}
                 placeholder="Selecione um usuário do CC"
               />
@@ -692,6 +764,29 @@ export default function EquipamentosPage() {
             </div>
             <Button type="submit" className="w-full" disabled={!associarUserId}>
               Definir como responsável
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={novaLocOpen} onOpenChange={setNovaLocOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova localização</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCriarLocalizacao} className="space-y-3">
+            <div className="space-y-1">
+              <Label>Nome <RequiredMark /></Label>
+              <Input
+                value={novaLocNome}
+                onChange={(e) => setNovaLocNome(e.target.value)}
+                placeholder="Ex.: Sala TI, Almoxarifado, …"
+                required
+                autoFocus
+              />
+            </div>
+            <Button type="submit" className="w-full">
+              Criar e selecionar
             </Button>
           </form>
         </DialogContent>

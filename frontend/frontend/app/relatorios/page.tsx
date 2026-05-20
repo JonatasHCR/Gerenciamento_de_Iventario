@@ -339,7 +339,8 @@ export default function RelatoriosPage() {
                     { value: '', label: 'Nenhum' },
                     ...gestoresOptions.map((u) => ({
                       value: String(u.id),
-                      label: `${u.nome} (${u.email})`,
+                      label: u.nome,
+                      searchKey: `${u.nome} ${u.email}`,
                     })),
                   ]}
                   placeholder={

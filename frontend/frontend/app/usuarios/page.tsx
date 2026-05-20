@@ -11,7 +11,11 @@ import {
   type UserUpdate,
 } from '@/lib/api/users'
 import { getContratos } from '@/lib/api/contratos'
-import { getAssociacoesContrato, deleteAssociacaoContrato } from '@/lib/api/associacoes'
+import {
+  getAssociacoesContrato,
+  deleteAssociacaoContrato,
+  updateAssociacaoContrato,
+} from '@/lib/api/associacoes'
 import { createConviteCC } from '@/lib/api/solicitacoes'
 import type { User, Contrato, AssociacaoUserContrato, Ocupacao } from '@/types/api'
 import { Button } from '@/components/ui/button'
@@ -39,6 +43,7 @@ import {
   Plus,
   ChevronDown,
   ChevronRight,
+  Shield,
 } from 'lucide-react'
 import { SearchableSelect } from '@/components/app/searchable-select'
 
@@ -70,6 +75,15 @@ export default function UsuariosPage() {
 
   const [openNovo, setOpenNovo] = useState(false)
   const [novo, setNovo] = useState({ nome: '', email: '', senha: '', tipo: 'Funcionario' })
+
+  // "Mudar cargo no CC"
+  const [cargoEditing, setCargoEditing] = useState<{
+    user_id: number
+    cc: string
+    nome: string
+    ocupacao_atual: Ocupacao
+  } | null>(null)
+  const [novaOcupacao, setNovaOcupacao] = useState<Ocupacao>('Funcionario')
 
   const load = () => {
     getUsers().then(setUsers).catch(() => {})
@@ -134,6 +148,57 @@ export default function UsuariosPage() {
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erro ao remover.')
     }
+  }
+
+  function abrirMudarCargo(
+    membro: AssociacaoUserContrato,
+    nomeUsuario: string,
+  ) {
+    setCargoEditing({
+      user_id: membro.user_id,
+      cc: membro.centro_custo,
+      nome: nomeUsuario,
+      ocupacao_atual: membro.ocupacao,
+    })
+    setNovaOcupacao(membro.ocupacao)
+  }
+
+  async function handleMudarCargo(e: React.FormEvent) {
+    e.preventDefault()
+    if (!cargoEditing) return
+    if (novaOcupacao === cargoEditing.ocupacao_atual) {
+      toast.info('Selecione um cargo diferente do atual.')
+      return
+    }
+    try {
+      await updateAssociacaoContrato(
+        cargoEditing.user_id,
+        cargoEditing.cc,
+        novaOcupacao,
+      )
+      toast.success(
+        `${cargoEditing.nome} agora é ${novaOcupacao} em ${cargoEditing.cc}.`,
+      )
+      setCargoEditing(null)
+      load()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao mudar cargo.')
+    }
+  }
+
+  /** Pode mudar o cargo do membro neste CC?
+   *  - Admin sempre.
+   *  - Gestor do CC pode, MAS não pode mexer em outro Gestor.
+   *  - Subgestor/demais: não.
+   */
+  function podeMudarCargo(membro: AssociacaoUserContrato): boolean {
+    if (membro.user_id === user?.id) return false
+    if (isAdmin) return true
+    const minhaOcupacao = assocs.find(
+      (a) => a.user_id === user?.id && a.centro_custo === membro.centro_custo,
+    )?.ocupacao
+    if (minhaOcupacao !== 'Gestor') return false
+    return membro.ocupacao !== 'Gestor'
   }
 
   async function handleDeleteUser(id: number) {
@@ -256,6 +321,19 @@ export default function UsuariosPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{m.ocupacao}</Badge>
+                        {podeMudarCargo(m) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() =>
+                              abrirMudarCargo(m, u?.nome ?? `#${m.user_id}`)
+                            }
+                            title="Mudar cargo no CC"
+                          >
+                            <Shield className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         {canInvite && m.user_id !== user?.id && (
                           <Button
                             size="icon"
@@ -340,7 +418,11 @@ export default function UsuariosPage() {
                 onChange={setConviteUserId}
                 options={users
                   .filter((u) => u.id !== user?.id)
-                  .map((u) => ({ value: String(u.id), label: `${u.nome} (${u.email})` }))}
+                  .map((u) => ({
+                    value: String(u.id),
+                    label: u.nome,
+                    searchKey: `${u.nome} ${u.email}`,
+                  }))}
               />
             </div>
             <div className="space-y-1">
@@ -473,6 +555,46 @@ export default function UsuariosPage() {
               </div>
             )}
             <Button type="submit" className="w-full">Salvar</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={cargoEditing !== null}
+        onOpenChange={(o) => !o && setCargoEditing(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Mudar cargo de {cargoEditing?.nome} em {cargoEditing?.cc}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleMudarCargo} className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Cargo atual: <strong>{cargoEditing?.ocupacao_atual}</strong>
+            </p>
+            <div className="space-y-1">
+              <Label>Novo cargo no CC <RequiredMark /></Label>
+              <Select
+                value={novaOcupacao}
+                onValueChange={(v) => setNovaOcupacao(v as Ocupacao)}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Funcionario">Funcionario</SelectItem>
+                  <SelectItem value="Subgestor">Subgestor</SelectItem>
+                  <SelectItem value="Gestor">Gestor</SelectItem>
+                </SelectContent>
+              </Select>
+              {!isAdmin && (
+                <p className="text-xs text-muted-foreground">
+                  Apenas o Admin pode rebaixar ou promover Gestores.
+                </p>
+              )}
+            </div>
+            <Button type="submit" className="w-full">
+              Aplicar
+            </Button>
           </form>
         </DialogContent>
       </Dialog>
