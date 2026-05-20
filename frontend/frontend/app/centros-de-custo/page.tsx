@@ -155,9 +155,12 @@ export default function CentrosDeCustoPage() {
                   <Label>Código <RequiredMark /></Label>
                   <Input
                     value={novoCc}
-                    onChange={(e) => setNovoCc(e.target.value)}
+                    onChange={(e) => setNovoCc(e.target.value.toUpperCase())}
                     required
+                    maxLength={4}
+                    placeholder="Ex.: TI01"
                   />
+                  <p className="text-xs text-muted-foreground">Máximo 4 caracteres</p>
                 </div>
                 <div className="space-y-1">
                   <Label>Descrição <RequiredMark /></Label>
