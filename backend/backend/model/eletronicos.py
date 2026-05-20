@@ -39,9 +39,7 @@ class Eletronico(Base):
             "status IN ('Interno', 'Externo', 'Em Manutenção')",
             name='check_status_valid',
         ),
-        CheckConstraint(
-            "tipo IN ('Computador', 'Notbook', 'Monitor', 'Impressora', "
-            "'Scanner')",
-            name='check_tipo_eletronico_valid',
-        ),
+        # CHECK do `tipo` foi removido — validação agora é via catálogo
+        # dinâmico tb_tipos_eletronico (ver migration f7b2d4a8e3c1 e
+        # backend/service/tipo_eletronico.py:assert_nome_valido).
     )

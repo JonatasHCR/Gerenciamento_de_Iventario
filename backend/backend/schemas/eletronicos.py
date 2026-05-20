@@ -1,5 +1,3 @@
-from typing import Literal
-
 from pydantic import BaseModel, Field
 
 
@@ -11,9 +9,13 @@ class EletronicoCreate(BaseModel):
     nome: str = Field(..., description='Nome do eletrônico')
     marca: str | None = Field(None, description='Marca do eletrônico')
     modelo: str | None = Field(None, description='Modelo do eletrônico')
-    tipo: Literal[
-        'Computador', 'Notbook', 'Monitor', 'Impressora', 'Scanner'
-    ] = Field(..., description='Tipo do eletrônico')
+    # Validado contra o catálogo dinâmico tb_tipos_eletronico no service.
+    tipo: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description='Tipo do eletrônico (deve existir em /tipos-eletronico/)',
+    )
     status: str = Field(..., description='Status do eletrônico')
     ip: str | None = Field(None, description='Endereço IP do eletrônico')
     localizacao: str | None = Field(
