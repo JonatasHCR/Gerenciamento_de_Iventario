@@ -13,6 +13,7 @@ from backend.model import (  # noqa: F401
     cessao,
     contratos,
     eletronicos,
+    localizacao,
     solicitacao,
     tipo_eletronico,
     user,
