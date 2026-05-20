@@ -368,6 +368,56 @@ async def test_update_assoc_contrato_gestor(async_client, async_db):
 
 @pytest.mark.asyncio
 @pytest.mark.routers
+async def test_update_assoc_contrato_gestor_nao_mexe_em_gestor(
+    async_client, async_db
+):
+    """Gestor não pode alterar o cargo de outro Gestor (mesmo CC)."""
+    c = await _criar_contrato(async_db)
+    gestor1, g1senha = await _criar_usuario(async_db, 'Gestor')
+    await _assoc_contrato(async_db, gestor1.id, c.centro_custo, 'Gestor')
+    gestor2, _ = await _criar_usuario(async_db, 'Gestor')
+    await _assoc_contrato(async_db, gestor2.id, c.centro_custo, 'Gestor')
+    g1token = await _login(async_client, gestor1.email, g1senha)
+
+    resp = await async_client.put(
+        f'{URL_CONTRATO}/{gestor2.id}/{c.centro_custo}',
+        json={
+            'user_id': gestor2.id,
+            'centro_custo': c.centro_custo,
+            'ocupacao': 'Funcionario',
+        },
+        headers={'Authorization': f'Bearer {g1token}'},
+    )
+
+    assert resp.status_code == HTTPStatus.FORBIDDEN
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_update_assoc_contrato_admin_pode_mexer_em_gestor(
+    async_client, async_db, login_teste
+):
+    """Admin bypassa a restrição e pode rebaixar Gestor."""
+    c = await _criar_contrato(async_db)
+    gestor, _ = await _criar_usuario(async_db, 'Gestor')
+    await _assoc_contrato(async_db, gestor.id, c.centro_custo, 'Gestor')
+
+    resp = await async_client.put(
+        f'{URL_CONTRATO}/{gestor.id}/{c.centro_custo}',
+        json={
+            'user_id': gestor.id,
+            'centro_custo': c.centro_custo,
+            'ocupacao': 'Funcionario',
+        },
+        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json()['ocupacao'] == 'Funcionario'
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
 async def test_update_assoc_contrato_subgestor_proibido(
     async_client, async_db
 ):
