@@ -15,6 +15,7 @@ import {
   FileText,
   BarChart3,
   Tags,
+  MapPin,
   History,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -61,6 +62,12 @@ const NAV = [
     href: '/tipos',
     label: 'Tipos',
     icon: Tags,
+    roles: ['Admin'],
+  },
+  {
+    href: '/localizacoes',
+    label: 'Localizações',
+    icon: MapPin,
     roles: ['Admin'],
   },
   {
@@ -182,8 +189,12 @@ export function Sidebar() {
               user?.tipo === 'Admin' || user?.tipo === 'Tecnico_TI'
             if (!isAdminTI && !ehGestorOuSub) return null
           }
-          // /tipos e /auditoria: restritos pelo array roles
-          if (href === '/tipos' || href === '/auditoria') {
+          // /tipos, /localizacoes, /auditoria: restritos pelo array roles
+          if (
+            href === '/tipos' ||
+            href === '/localizacoes' ||
+            href === '/auditoria'
+          ) {
             if (user?.tipo !== 'Admin') return null
           }
           const active = pathname === href
