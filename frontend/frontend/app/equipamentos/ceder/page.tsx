@@ -13,6 +13,7 @@ import type { Eletronico, Contrato } from '@/types/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RequiredMark } from '@/components/ui/required-mark'
 import { Badge } from '@/components/ui/badge'
 import { SearchableSelect } from '@/components/app/searchable-select'
 import { ArrowLeft, FileText, Send } from 'lucide-react'
@@ -203,7 +204,7 @@ export default function CederPage() {
           }
         >
           <div className="space-y-1">
-            <Label>Responsável (recebedor)</Label>
+            <Label>Responsável (recebedor) <RequiredMark /></Label>
             <Input
               value={responsavel}
               onChange={(e) => setResponsavel(e.target.value)}
@@ -212,7 +213,7 @@ export default function CederPage() {
             />
           </div>
           <div className="space-y-1">
-            <Label>Centro de Custo destino</Label>
+            <Label>Centro de Custo destino <RequiredMark /></Label>
             <SearchableSelect
               value={ccDestino}
               onChange={setCcDestino}

@@ -17,6 +17,7 @@ import type {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RequiredMark } from '@/components/ui/required-mark'
 import {
   Dialog,
   DialogContent,
@@ -151,7 +152,7 @@ export default function CentrosDeCustoPage() {
               </DialogHeader>
               <form onSubmit={handleCreate} className="space-y-3">
                 <div className="space-y-1">
-                  <Label>Código</Label>
+                  <Label>Código <RequiredMark /></Label>
                   <Input
                     value={novoCc}
                     onChange={(e) => setNovoCc(e.target.value)}
@@ -159,7 +160,7 @@ export default function CentrosDeCustoPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Descrição</Label>
+                  <Label>Descrição <RequiredMark /></Label>
                   <Input
                     value={novaDesc}
                     onChange={(e) => setNovaDesc(e.target.value)}
@@ -299,7 +300,7 @@ export default function CentrosDeCustoPage() {
               rejeita.
             </p>
             <div className="space-y-1">
-              <Label>Cargo desejado no CC</Label>
+              <Label>Cargo desejado no CC <RequiredMark /></Label>
               <Select
                 value={cargoEntrada}
                 onValueChange={(v) => setCargoEntrada(v as Ocupacao)}

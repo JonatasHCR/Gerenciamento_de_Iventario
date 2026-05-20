@@ -18,6 +18,7 @@ import {
   getAssociacoesContrato,
 } from '@/lib/api/associacoes'
 import { getUsers } from '@/lib/api/users'
+import { getTipos, type TipoEletronico } from '@/lib/api/tipos'
 import type {
   Eletronico,
   Contrato,
@@ -28,6 +29,7 @@ import type {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RequiredMark } from '@/components/ui/required-mark'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
@@ -61,13 +63,7 @@ const STATUS_COLORS: Record<string, string> = {
   'Em Manutenção': 'destructive',
 }
 
-const TIPOS_EQUIPAMENTO = [
-  'Computador',
-  'Notbook',
-  'Monitor',
-  'Impressora',
-  'Scanner',
-]
+// TIPOS_EQUIPAMENTO agora vem do backend dinamicamente — ver useEffect.
 
 const CAMPOS_BUSCA: Record<CampoBuscaEletronico, string> = {
   todos: 'Todos os campos',
@@ -117,11 +113,13 @@ export default function EquipamentosPage() {
   const [editando, setEditando] = useState<Eletronico | null>(null)
   const [form, setForm] = useState(EMPTY)
   const [novoResponsavelId, setNovoResponsavelId] = useState('')
+  const [semIp, setSemIp] = useState(false)
   const [associarEq, setAssociarEq] = useState<Eletronico | null>(null)
   const [associarUserId, setAssociarUserId] = useState('')
   const [assocsEl, setAssocsEl] = useState<AssociacaoUserEletronico[]>([])
   const [assocsCC, setAssocsCC] = useState<AssociacaoUserContrato[]>([])
   const [allUsers, setAllUsers] = useState<User[]>([])
+  const [tiposCatalogo, setTiposCatalogo] = useState<TipoEletronico[]>([])
 
   // Debounce do search
   useEffect(() => {
@@ -160,6 +158,8 @@ export default function EquipamentosPage() {
     getAssociacoesEletronico().then(setAssocsEl).catch(() => {})
     getAssociacoesContrato().then(setAssocsCC).catch(() => {})
     getUsers().then(setAllUsers).catch(() => {})
+    // Catálogo dinâmico — só os ativos pra alimentar o select
+    getTipos(true).then(setTiposCatalogo).catch(() => {})
   }, [])
 
   function reloadAssocs() {
@@ -247,6 +247,7 @@ export default function EquipamentosPage() {
   function abrirNovo() {
     setEditando(null)
     setForm(EMPTY)
+    setSemIp(false)
     setNovoResponsavelId(user ? String(user.id) : '')
     setOpen(true)
   }
@@ -266,17 +267,20 @@ export default function EquipamentosPage() {
       descricao: e.descricao ?? '',
       centro_custo: e.centro_custo,
     })
+    setSemIp(!e.ip)
     setOpen(true)
   }
 
   async function handleSave(ev: React.FormEvent) {
     ev.preventDefault()
+    // Quando "Sem IP" está marcado, força ip vazio (backend trata como nulo)
+    const payload = { ...form, ip: semIp ? '' : form.ip }
     try {
       if (editando) {
-        await updateEletronico(editando.id, form as Parameters<typeof updateEletronico>[1])
+        await updateEletronico(editando.id, payload as Parameters<typeof updateEletronico>[1])
         toast.success('Atualizado!')
       } else {
-        const novo = await createEletronico(form as Parameters<typeof createEletronico>[0])
+        const novo = await createEletronico(payload as Parameters<typeof createEletronico>[0])
 
         // Define o responsável (se diferente do auto-associado pelo backend)
         const isFuncionario =
@@ -392,8 +396,8 @@ export default function EquipamentosPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos os tipos</SelectItem>
-            {TIPOS_EQUIPAMENTO.map((t) => (
-              <SelectItem key={t} value={t}>{t}</SelectItem>
+            {tiposCatalogo.map((t) => (
+              <SelectItem key={t.id} value={t.nome}>{t.nome}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -534,12 +538,13 @@ export default function EquipamentosPage() {
                 ['numero_patrimonio', 'Nº Patrimônio', true],
                 ['marca', 'Marca', false],
                 ['modelo', 'Modelo', false],
-                ['ip', 'IP', false],
                 ['localizacao', 'Localização', false],
               ] as [keyof typeof EMPTY, string, boolean][]
             ).map(([field, label, required]) => (
               <div key={field} className="space-y-1">
-                <Label>{label}</Label>
+                <Label>
+                  {label} {required && <RequiredMark />}
+                </Label>
                 <Input
                   value={form[field]}
                   onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
@@ -548,18 +553,36 @@ export default function EquipamentosPage() {
               </div>
             ))}
             <div className="space-y-1">
-              <Label>Tipo</Label>
+              <Label>IP</Label>
+              <Input
+                value={semIp ? '' : form.ip}
+                onChange={(e) => setForm((f) => ({ ...f, ip: e.target.value }))}
+                disabled={semIp}
+                placeholder={semIp ? 'Sem IP' : 'ex.: 10.0.0.1'}
+                className={semIp ? 'bg-muted' : ''}
+              />
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={semIp}
+                  onChange={(e) => setSemIp(e.target.checked)}
+                />
+                Equipamento sem IP
+              </label>
+            </div>
+            <div className="space-y-1">
+              <Label>Tipo <RequiredMark /></Label>
               <Select value={form.tipo} onValueChange={(v) => setForm((f) => ({ ...f, tipo: v }))}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  {TIPOS_EQUIPAMENTO.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  {tiposCatalogo.map((t) => (
+                    <SelectItem key={t.id} value={t.nome}>{t.nome}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Status</Label>
+              <Label>Status <RequiredMark /></Label>
               <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -570,7 +593,7 @@ export default function EquipamentosPage() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Centro de Custo</Label>
+              <Label>Centro de Custo <RequiredMark /></Label>
               <SearchableSelect
                 value={form.centro_custo}
                 onChange={(v) => {

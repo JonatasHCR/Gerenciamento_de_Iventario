@@ -11,6 +11,7 @@ import {
   getAssociacoesContrato,
   getAssociacoesEletronico,
 } from '@/lib/api/associacoes'
+import { getTipos, type TipoEletronico } from '@/lib/api/tipos'
 import type {
   Eletronico,
   Contrato,
@@ -50,7 +51,6 @@ const COLUNAS: { key: ColKey; label: string }[] = [
 ]
 
 const STATUSES = ['Interno', 'Externo', 'Em Manutenção']
-const TIPOS = ['Computador', 'Notbook', 'Monitor', 'Impressora', 'Scanner']
 
 export default function RelatoriosPage() {
   const { user } = useAuth()
@@ -63,9 +63,15 @@ export default function RelatoriosPage() {
   const [authChecked, setAuthChecked] = useState(false)
   const [authorized, setAuthorized] = useState(false)
 
+  const [tiposCatalogo, setTiposCatalogo] = useState<TipoEletronico[]>([])
+  const tiposNomes = useMemo(
+    () => tiposCatalogo.map((t) => t.nome),
+    [tiposCatalogo],
+  )
+
   const [ccsSel, setCcsSel] = useState<Set<string>>(new Set())
   const [statusSel, setStatusSel] = useState<Set<string>>(new Set(STATUSES))
-  const [tiposSel, setTiposSel] = useState<Set<string>>(new Set(TIPOS))
+  const [tiposSel, setTiposSel] = useState<Set<string>>(new Set())
   const [gestorId, setGestorId] = useState<string>('')
   const [colunasSel, setColunasSel] = useState<Set<ColKey>>(
     new Set(COLUNAS.map((c) => c.key).filter((k) => k !== 'centro_custo')),
@@ -89,6 +95,12 @@ export default function RelatoriosPage() {
       getUsers().then(setUsers).catch(() => {})
       getAssociacoesContrato().then(setAssocs).catch(() => {})
       getAssociacoesEletronico().then(setAssocsEl).catch(() => {})
+      getTipos(true)
+        .then((tipos) => {
+          setTiposCatalogo(tipos)
+          setTiposSel(new Set(tipos.map((t) => t.nome)))
+        })
+        .catch(() => {})
       return
     }
 
@@ -113,6 +125,12 @@ export default function RelatoriosPage() {
         getContratos().then(setContratos).catch(() => {})
         getUsers().then(setUsers).catch(() => {})
         getAssociacoesEletronico().then(setAssocsEl).catch(() => {})
+        getTipos(true)
+          .then((tipos) => {
+            setTiposCatalogo(tipos)
+            setTiposSel(new Set(tipos.map((t) => t.nome)))
+          })
+          .catch(() => {})
       })
       .catch(() => router.replace('/'))
       .finally(() => setAuthChecked(true))
@@ -167,6 +185,11 @@ export default function RelatoriosPage() {
       return responsavelPorEqId.get(e.id) ?? '—'
     }
     const v = e[key]
+    // IP é opcional — quando vazio/null, deixar explícito "Sem IP".
+    if (key === 'ip') {
+      const s = v == null ? '' : String(v).trim()
+      return s || 'Sem IP'
+    }
     return v == null ? '' : String(v)
   }
 
@@ -259,7 +282,7 @@ export default function RelatoriosPage() {
       label: 'Status',
       value: Array.from(statusSel).join(', '),
     },
-    tiposSel.size < TIPOS.length && {
+    tiposSel.size < tiposNomes.length && {
       label: 'Tipos',
       value: Array.from(tiposSel).join(', '),
     },
@@ -416,7 +439,7 @@ export default function RelatoriosPage() {
               <div>
                 <Label className="mb-2 block">Tipos</Label>
                 <div className="space-y-1 rounded-md border p-2">
-                  {TIPOS.map((t) => (
+                  {tiposNomes.map((t) => (
                     <label
                       key={t}
                       className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/50"

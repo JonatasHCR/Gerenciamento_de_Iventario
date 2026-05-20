@@ -9,6 +9,7 @@ import { useAuth } from '@/context/auth-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RequiredMark } from '@/components/ui/required-mark'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -86,7 +87,7 @@ export default function CadastroPage() {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="nome">Nome</Label>
+            <Label htmlFor="nome">Nome <RequiredMark /></Label>
             <Input
               id="nome"
               value={nome}
@@ -96,7 +97,7 @@ export default function CadastroPage() {
             />
           </div>
           <div className="space-y-1">
-            <Label>Email</Label>
+            <Label>Email <RequiredMark /></Label>
             <div className="flex gap-2">
               <Input
                 id="email-local"
@@ -125,7 +126,7 @@ export default function CadastroPage() {
             </p>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="senha">Senha</Label>
+            <Label htmlFor="senha">Senha <RequiredMark /></Label>
             <Input
               id="senha"
               type="password"

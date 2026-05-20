@@ -17,6 +17,7 @@ import type { User, Contrato, AssociacaoUserContrato, Ocupacao } from '@/types/a
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RequiredMark } from '@/components/ui/required-mark'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
@@ -333,7 +334,7 @@ export default function UsuariosPage() {
           </DialogHeader>
           <form onSubmit={handleConvite} className="space-y-3">
             <div className="space-y-1">
-              <Label>Usuário</Label>
+              <Label>Usuário <RequiredMark /></Label>
               <SearchableSelect
                 value={conviteUserId}
                 onChange={setConviteUserId}
@@ -343,7 +344,7 @@ export default function UsuariosPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Centro de Custo</Label>
+              <Label>Centro de Custo <RequiredMark /></Label>
               <SearchableSelect
                 value={conviteCC}
                 onChange={setConviteCC}
@@ -354,7 +355,7 @@ export default function UsuariosPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Cargo no CC</Label>
+              <Label>Cargo no CC <RequiredMark /></Label>
               <Select value={conviteOcupacao} onValueChange={(v) => setConviteOcupacao(v as Ocupacao)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -378,7 +379,7 @@ export default function UsuariosPage() {
           </DialogHeader>
           <form onSubmit={handleNovo} className="space-y-3" autoComplete="off">
             <div className="space-y-1">
-              <Label>Nome</Label>
+              <Label>Nome <RequiredMark /></Label>
               <Input
                 value={novo.nome}
                 onChange={(e) => setNovo((n) => ({ ...n, nome: e.target.value }))}
@@ -387,7 +388,7 @@ export default function UsuariosPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Email</Label>
+              <Label>Email <RequiredMark /></Label>
               <Input
                 type="email"
                 value={novo.email}
@@ -397,7 +398,7 @@ export default function UsuariosPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Senha</Label>
+              <Label>Senha <RequiredMark /></Label>
               <Input
                 type="password"
                 value={novo.senha}
@@ -407,7 +408,7 @@ export default function UsuariosPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label>Tipo</Label>
+              <Label>Tipo <RequiredMark /></Label>
               <Select value={novo.tipo} onValueChange={(v) => setNovo((n) => ({ ...n, tipo: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
