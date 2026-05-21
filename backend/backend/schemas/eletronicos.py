@@ -1,4 +1,8 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+StatusEletronico = Literal['Interno', 'Externo', 'Em Manutenção']
 
 
 class EletronicoCreate(BaseModel):
@@ -16,7 +20,9 @@ class EletronicoCreate(BaseModel):
         max_length=50,
         description='Tipo do eletrônico (deve existir em /tipos-eletronico/)',
     )
-    status: str = Field(..., description='Status do eletrônico')
+    status: StatusEletronico = Field(
+        ..., description='Status do eletrônico'
+    )
     ip: str | None = Field(None, description='Endereço IP do eletrônico')
     localizacao: str | None = Field(
         None, description='Localização do eletrônico'

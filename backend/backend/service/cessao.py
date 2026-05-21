@@ -343,6 +343,16 @@ class CessaoService:
             or datetime.now(tz=ZoneInfo('America/Sao_Paulo'))
         )
 
+        data_retirada = cessao.cedido_em.date()
+        if quando.date() < data_retirada:
+            raise HTTPException(
+                status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+                detail=(
+                    'A data de devolução não pode ser anterior à data '
+                    f'de retirada ({data_retirada.strftime("%d/%m/%Y")}).'
+                ),
+            )
+
         for i in ids_pedidos:
             ce, el = por_id[i]
             ce.devolvido_em = quando
