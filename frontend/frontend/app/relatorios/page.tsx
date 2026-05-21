@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
-import { getEletronicos } from '@/lib/api/eletronicos'
+import {
+  getEletronicosPaginated,
+  type EletronicoQuery,
+} from '@/lib/api/eletronicos'
 import { getContratos } from '@/lib/api/contratos'
 import { getUsers } from '@/lib/api/users'
 import {
@@ -31,6 +34,7 @@ import {
   ChevronDown,
   ChevronRight,
   Layers,
+  Search,
 } from 'lucide-react'
 
 type ColKey = keyof Eletronico | 'responsavel'
@@ -70,6 +74,18 @@ const AGRUPAMENTOS: { key: AgrupamentoKey; label: string }[] = [
 
 const SEM_LOCALIZACAO = '(Sem localização)'
 
+async function fetchAll(query: EletronicoQuery): Promise<Eletronico[]> {
+  const ps = 500
+  const first = await getEletronicosPaginated({ ...query, page: 1, page_size: ps })
+  if (first.pages <= 1) return first.eletronicos
+  const rest = await Promise.all(
+    Array.from({ length: first.pages - 1 }, (_, i) =>
+      getEletronicosPaginated({ ...query, page: i + 2, page_size: ps }),
+    ),
+  )
+  return [first.eletronicos, ...rest.map((r) => r.eletronicos)].flat()
+}
+
 export default function RelatoriosPage() {
   const { user } = useAuth()
   const router = useRouter()
@@ -81,6 +97,7 @@ export default function RelatoriosPage() {
   const [authChecked, setAuthChecked] = useState(false)
   const [authorized, setAuthorized] = useState(false)
   const [tiposCatalogo, setTiposCatalogo] = useState<TipoEletronico[]>([])
+  const [loadingData, setLoadingData] = useState(false)
 
   const tiposNomes = useMemo(
     () => tiposCatalogo.map((t) => t.nome),
@@ -108,6 +125,30 @@ export default function RelatoriosPage() {
 
   const isAdminOuTI = user?.tipo === 'Admin' || user?.tipo === 'Tecnico_TI'
 
+  async function buscarComFiltros() {
+    setLoadingData(true)
+    try {
+      const query: EletronicoQuery = {
+        centro_custo: ccsSel.size > 0 ? Array.from(ccsSel) : undefined,
+        status:
+          statusSel.size > 0 && statusSel.size < STATUSES.length
+            ? Array.from(statusSel)
+            : undefined,
+        tipo:
+          tiposSel.size > 0 && tiposSel.size < tiposNomes.length
+            ? Array.from(tiposSel)
+            : undefined,
+      }
+      const items = await fetchAll(query)
+      setEletronicos(items)
+      setLocalizacoesSel(new Set())
+    } catch {
+      toast.error('Erro ao buscar equipamentos.')
+    } finally {
+      setLoadingData(false)
+    }
+  }
+
   useEffect(() => {
     if (!user) return
     const isAdminOuTIUser = user.tipo === 'Admin' || user.tipo === 'Tecnico_TI'
@@ -115,7 +156,7 @@ export default function RelatoriosPage() {
     if (isAdminOuTIUser) {
       setAuthorized(true)
       setAuthChecked(true)
-      getEletronicos().then(setEletronicos).catch(() => {})
+      fetchAll({}).then(setEletronicos).catch(() => {})
       getContratos().then(setContratos).catch(() => {})
       getUsers().then(setUsers).catch(() => {})
       getAssociacoesContrato().then(setAssocs).catch(() => {})
@@ -145,7 +186,7 @@ export default function RelatoriosPage() {
           return
         }
         setAuthorized(true)
-        getEletronicos().then(setEletronicos).catch(() => {})
+        fetchAll({}).then(setEletronicos).catch(() => {})
         getContratos().then(setContratos).catch(() => {})
         getUsers().then(setUsers).catch(() => {})
         getAssociacoesEletronico().then(setAssocsEl).catch(() => {})
@@ -384,9 +425,21 @@ export default function RelatoriosPage() {
 
         {/* Filtros */}
         <section className="rounded-lg border bg-card">
-          <header className="flex items-center gap-2 border-b px-4 py-2.5">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">Filtros</h2>
+          <header className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold">Filtros</h2>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={buscarComFiltros}
+              disabled={loadingData}
+            >
+              <Search className="mr-1.5 h-3.5 w-3.5" />
+              {loadingData ? 'Buscando…' : 'Buscar no servidor'}
+            </Button>
           </header>
           <div className="space-y-4 p-4">
             <div className="space-y-1">

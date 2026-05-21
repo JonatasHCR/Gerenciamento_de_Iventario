@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
-import { getEletronicos } from '@/lib/api/eletronicos'
+import { getEletronicosPaginated } from '@/lib/api/eletronicos'
 import { createCessao } from '@/lib/api/cessoes'
 import { createSolicitacaoCessao } from '@/lib/api/solicitacoes'
 import { getContratos } from '@/lib/api/contratos'
@@ -23,16 +23,22 @@ export default function CederPage() {
   const { user } = useAuth()
   const router = useRouter()
   const [eletronicos, setEletronicos] = useState<Eletronico[]>([])
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [loadingTable, setLoadingTable] = useState(false)
   const [contratos, setContratos] = useState<Contrato[]>([])
   const [meusCCsGestor, setMeusCCsGestor] = useState<string[]>([])
   const [meusCCsSubgestor, setMeusCCsSubgestor] = useState<string[]>([])
   const [search, setSearch] = useState('')
   const [filtroCC, setFiltroCC] = useState('todos')
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set())
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const [responsavel, setResponsavel] = useState('')
   const [ccDestino, setCcDestino] = useState('')
   const [dataCessao, setDataCessao] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [ready, setReady] = useState(false)
 
   const isAdmin = user?.tipo === 'Admin'
   const isTI = user?.tipo === 'Tecnico_TI'
@@ -42,6 +48,7 @@ export default function CederPage() {
     meusCCsGestor.length === 0 &&
     meusCCsSubgestor.length > 0
 
+  // Carrega associações e contratos uma única vez
   useEffect(() => {
     if (!user) return
     getAssociacoesContrato()
@@ -57,12 +64,74 @@ export default function CederPage() {
         setMeusCCsSubgestor(sub)
         if (!hasFullAccess && gestor.length === 0 && sub.length === 0) {
           router.replace('/equipamentos')
+          return
         }
+        setReady(true)
       })
       .catch(() => {})
-    getEletronicos().then(setEletronicos).catch(() => {})
     getContratos().then(setContratos).catch(() => {})
+    if (hasFullAccess) setReady(true)
   }, [user, hasFullAccess, router])
+
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handleSearch(value: string) {
+    setSearch(value)
+    if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    debounceTimer.current = setTimeout(() => {
+      setPage(1)
+      fetchPage(1, pageSize, value, filtroCC)
+    }, 300)
+  }
+
+  function handleFiltroCC(value: string) {
+    setFiltroCC(value)
+    setPage(1)
+    fetchPage(1, pageSize, search, value)
+  }
+
+  function handlePageSize(value: number) {
+    setPageSize(value)
+    setPage(1)
+    fetchPage(1, value, search, filtroCC)
+  }
+
+  function handlePage(next: number) {
+    setPage(next)
+    fetchPage(next, pageSize, search, filtroCC)
+  }
+
+  async function fetchPage(
+    p: number,
+    ps: number,
+    q: string,
+    cc: string,
+  ) {
+    setLoadingTable(true)
+    try {
+      const res = await getEletronicosPaginated({
+        status: ['Interno'],
+        q: q.trim() || undefined,
+        centro_custo: cc !== 'todos' ? [cc] : undefined,
+        page: p,
+        page_size: ps,
+      })
+      setEletronicos(res.eletronicos)
+      setTotal(res.total)
+      setTotalPages(res.pages)
+    } catch {
+      toast.error('Erro ao carregar equipamentos.')
+    } finally {
+      setLoadingTable(false)
+    }
+  }
+
+  // Busca inicial quando o usuário está pronto
+  useEffect(() => {
+    if (!ready) return
+    fetchPage(page, pageSize, search, filtroCC)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready])
 
   const meusCCsOperaveis = useMemo(
     () => [...meusCCsGestor, ...meusCCsSubgestor],
@@ -75,23 +144,6 @@ export default function CederPage() {
       : meusCCsOperaveis
   }, [hasFullAccess, contratos, meusCCsOperaveis])
 
-  const filtrados = useMemo(() => {
-    const term = search.toLowerCase()
-    return eletronicos
-      .filter((e) => e.status === 'Interno')
-      .filter(
-        (e) => hasFullAccess || meusCCsOperaveis.includes(e.centro_custo),
-      )
-      .filter((e) => filtroCC === 'todos' || e.centro_custo === filtroCC)
-      .filter(
-        (e) =>
-          !term ||
-          e.nome.toLowerCase().includes(term) ||
-          e.numero_serie.toLowerCase().includes(term) ||
-          e.numero_patrimonio.toLowerCase().includes(term),
-      )
-  }, [eletronicos, search, filtroCC, hasFullAccess, meusCCsOperaveis])
-
   function toggle(id: number) {
     setSelecionados((s) => {
       const n = new Set(s)
@@ -102,16 +154,16 @@ export default function CederPage() {
   }
 
   function toggleAll() {
-    if (filtrados.every((e) => selecionados.has(e.id))) {
+    if (eletronicos.every((e) => selecionados.has(e.id))) {
       setSelecionados((s) => {
         const n = new Set(s)
-        filtrados.forEach((e) => n.delete(e.id))
+        eletronicos.forEach((e) => n.delete(e.id))
         return n
       })
     } else {
       setSelecionados((s) => {
         const n = new Set(s)
-        filtrados.forEach((e) => n.add(e.id))
+        eletronicos.forEach((e) => n.add(e.id))
         return n
       })
     }
@@ -124,27 +176,9 @@ export default function CederPage() {
       return
     }
     const ids = Array.from(selecionados)
-    const itensSelecionados = eletronicos.filter((el) => ids.includes(el.id))
     setSubmitting(true)
     try {
       if (isSubgestorOnly) {
-        // Subgestor: precisa ser um único CC de origem (Subgestor seu).
-        const ccsOrigem = new Set(itensSelecionados.map((e) => e.centro_custo))
-        if (ccsOrigem.size !== 1) {
-          toast.error(
-            'Selecione equipamentos de apenas um CC de origem.',
-          )
-          setSubmitting(false)
-          return
-        }
-        const cc = [...ccsOrigem][0]
-        if (!meusCCsSubgestor.includes(cc)) {
-          toast.error(
-            'Você só pode solicitar cessão dos CCs em que é Subgestor.',
-          )
-          setSubmitting(false)
-          return
-        }
         await createSolicitacaoCessao({
           eletronico_ids: ids,
           responsavel,
@@ -173,7 +207,10 @@ export default function CederPage() {
   }
 
   const todosMarcados =
-    filtrados.length > 0 && filtrados.every((e) => selecionados.has(e.id))
+    eletronicos.length > 0 && eletronicos.every((e) => selecionados.has(e.id))
+
+  const inicioItem = total === 0 ? 0 : (page - 1) * pageSize + 1
+  const fimItem = Math.min(page * pageSize, total)
 
   return (
     <div className="space-y-4">
@@ -232,9 +269,7 @@ export default function CederPage() {
                 value={dataCessao}
                 onChange={(e) => setDataCessao(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">
-                Em branco usa hoje
-              </p>
+              <p className="text-xs text-muted-foreground">Em branco usa hoje</p>
             </div>
           )}
         </div>
@@ -243,11 +278,11 @@ export default function CederPage() {
           <Input
             placeholder="Buscar por nome, série ou patrimônio…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
           />
           <SearchableSelect
             value={filtroCC}
-            onChange={setFiltroCC}
+            onChange={handleFiltroCC}
             options={[
               { value: 'todos', label: 'Todos os CCs disponíveis' },
               ...ccsDisponiveis.map((cc) => ({ value: cc, label: cc })),
@@ -274,46 +309,98 @@ export default function CederPage() {
               </tr>
             </thead>
             <tbody>
-              {filtrados.map((e) => (
-                <tr
-                  key={e.id}
-                  className="cursor-pointer border-b last:border-0 hover:bg-muted/30"
-                  onClick={() => toggle(e.id)}
-                >
-                  <td className="px-3 py-2">
-                    <input
-                      type="checkbox"
-                      checked={selecionados.has(e.id)}
-                      onChange={() => toggle(e.id)}
-                      onClick={(ev) => ev.stopPropagation()}
-                      className="h-4 w-4"
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <p className="font-medium">{e.nome}</p>
-                    <p className="text-xs text-muted-foreground">{e.tipo}</p>
-                  </td>
-                  <td className="px-3 py-2">{e.numero_serie}</td>
-                  <td className="px-3 py-2">{e.numero_patrimonio}</td>
-                  <td className="px-3 py-2">
-                    <Badge variant="outline">{e.centro_custo}</Badge>
+              {loadingTable ? (
+                <tr>
+                  <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                    Carregando…
                   </td>
                 </tr>
-              ))}
-              {filtrados.length === 0 && (
+              ) : eletronicos.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
                     Nenhum equipamento interno disponível.
                   </td>
                 </tr>
+              ) : (
+                eletronicos.map((e) => (
+                  <tr
+                    key={e.id}
+                    className="cursor-pointer border-b last:border-0 hover:bg-muted/30"
+                    onClick={() => toggle(e.id)}
+                  >
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={selecionados.has(e.id)}
+                        onChange={() => toggle(e.id)}
+                        onClick={(ev) => ev.stopPropagation()}
+                        className="h-4 w-4"
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <p className="font-medium">{e.nome}</p>
+                      <p className="text-xs text-muted-foreground">{e.tipo}</p>
+                    </td>
+                    <td className="px-3 py-2">{e.numero_serie}</td>
+                    <td className="px-3 py-2">{e.numero_patrimonio}</td>
+                    <td className="px-3 py-2">
+                      <Badge variant="outline">{e.centro_custo}</Badge>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
         </div>
 
+        {/* Paginação */}
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <p className="text-muted-foreground">
+            {total === 0
+              ? 'Nenhum resultado'
+              : `${inicioItem}–${fimItem} de ${total}`}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handlePage(Math.max(1, page - 1))}
+              disabled={page === 1 || loadingTable}
+              className="rounded border px-2 py-1 text-xs disabled:opacity-40 hover:bg-muted"
+            >
+              ‹ Anterior
+            </button>
+            <span className="text-xs text-muted-foreground">
+              {page} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => handlePage(Math.min(totalPages, page + 1))}
+              disabled={page === totalPages || loadingTable}
+              className="rounded border px-2 py-1 text-xs disabled:opacity-40 hover:bg-muted"
+            >
+              Próxima ›
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Itens/pág.:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => handlePageSize(Number(e.target.value))}
+              className="rounded border bg-background px-1.5 py-1 text-xs"
+            >
+              {[10, 25, 50, 100].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between rounded-md border bg-card p-3">
           <p className="text-sm">
             <strong>{selecionados.size}</strong> equipamento(s) selecionado(s)
+            {selecionados.size > 0 && total > pageSize && (
+              <span className="ml-1 text-muted-foreground">(de várias páginas)</span>
+            )}
           </p>
           <Button
             type="submit"

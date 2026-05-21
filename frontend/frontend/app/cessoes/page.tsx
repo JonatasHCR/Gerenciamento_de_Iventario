@@ -192,28 +192,12 @@ export default function CessoesPage() {
     const podeExcluir = canDelete(c)
     return (
       <div key={c.id} className="rounded-md border bg-card p-4 space-y-2">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <div className="flex items-center gap-2">
-              {renderStatusBadge(c)}
-              <span className="text-sm font-medium">#{c.id}</span>
-            </div>
-            <p className="mt-1 text-sm">
-              <strong>Responsável:</strong> {c.responsavel}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              CC destino: <strong>{c.centro_custo_destino}</strong>
-              {' · '}
-              {c.total_eletronicos} equipamento(s)
-              {c.status === 'parcial' &&
-                ` · ${c.total_pendentes} pendente(s)`}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Cedida em {formatDate(c.cedido_em)}
-              {c.devolvida_em && ` · Devolvida em ${formatDate(c.devolvida_em)}`}
-            </p>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            {renderStatusBadge(c)}
+            <span className="text-sm font-medium">#{c.id}</span>
           </div>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap justify-end gap-1">
             <Link href={`/cessoes/${c.id}/termo`}>
               <Button size="sm" variant="outline">
                 <FileText className="mr-1 h-4 w-4" />
@@ -242,6 +226,22 @@ export default function CessoesPage() {
               </Button>
             )}
           </div>
+        </div>
+        <div>
+          <p className="text-sm">
+            <strong>Responsável:</strong> {c.responsavel}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            CC destino: <strong>{c.centro_custo_destino}</strong>
+            {' · '}
+            {c.total_eletronicos} equipamento(s)
+            {c.status === 'parcial' &&
+              ` · ${c.total_pendentes} pendente(s)`}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Cedida em {formatDate(c.cedido_em)}
+            {c.devolvida_em && ` · Devolvida em ${formatDate(c.devolvida_em)}`}
+          </p>
         </div>
 
         {c.devolucoes.length > 0 && (

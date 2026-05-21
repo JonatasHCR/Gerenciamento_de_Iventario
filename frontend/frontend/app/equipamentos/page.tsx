@@ -98,8 +98,6 @@ const EMPTY = {
   centro_custo: '',
 }
 
-const PAGE_SIZE = 25
-
 export default function EquipamentosPage() {
   const { user } = useAuth()
   const [eletronicos, setEletronicos] = useState<Eletronico[]>([])
@@ -112,6 +110,7 @@ export default function EquipamentosPage() {
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [filtroTipo, setFiltroTipo] = useState('todos')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const [total, setTotal] = useState(0)
   const [pages, setPages] = useState(1)
   const [loading, setLoading] = useState(false)
@@ -136,10 +135,10 @@ export default function EquipamentosPage() {
     return () => clearTimeout(t)
   }, [search])
 
-  // Reseta para página 1 quando filtros mudam
+  // Reseta para página 1 quando filtros ou page size mudam
   useEffect(() => {
     setPage(1)
-  }, [searchDebounced, campoBusca, filtroCC, filtroStatus, filtroTipo])
+  }, [searchDebounced, campoBusca, filtroCC, filtroStatus, filtroTipo, pageSize])
 
   // Carrega dados quando filtros ou página mudam
   useEffect(() => {
@@ -151,7 +150,7 @@ export default function EquipamentosPage() {
       status: filtroStatus !== 'todos' ? [filtroStatus] : undefined,
       tipo: filtroTipo !== 'todos' ? [filtroTipo] : undefined,
       page,
-      page_size: PAGE_SIZE,
+      page_size: pageSize,
     })
       .then((res) => {
         setEletronicos(res.eletronicos)
@@ -160,7 +159,7 @@ export default function EquipamentosPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [searchDebounced, campoBusca, filtroCC, filtroStatus, filtroTipo, page])
+  }, [searchDebounced, campoBusca, filtroCC, filtroStatus, filtroTipo, page, pageSize])
 
   useEffect(() => {
     getContratos().then(setContratos).catch(() => {})
@@ -258,7 +257,7 @@ export default function EquipamentosPage() {
       status: filtroStatus !== 'todos' ? [filtroStatus] : undefined,
       tipo: filtroTipo !== 'todos' ? [filtroTipo] : undefined,
       page,
-      page_size: PAGE_SIZE,
+      page_size: pageSize,
     })
       .then((res) => {
         setEletronicos(res.eletronicos)
@@ -522,8 +521,8 @@ export default function EquipamentosPage() {
           <span className="text-muted-foreground">
             Mostrando{' '}
             <strong>
-              {(page - 1) * PAGE_SIZE + 1}–
-              {Math.min(page * PAGE_SIZE, total)}
+              {(page - 1) * pageSize + 1}–
+              {Math.min(page * pageSize, total)}
             </strong>{' '}
             de <strong>{total}</strong>
           </span>
@@ -547,6 +546,18 @@ export default function EquipamentosPage() {
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Itens/pág.:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="rounded border bg-background px-1.5 py-1 text-xs"
+            >
+              {[10, 25, 50, 100].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
           </div>
         </div>
       )}
