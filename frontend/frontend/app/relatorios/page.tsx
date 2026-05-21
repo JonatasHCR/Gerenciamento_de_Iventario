@@ -773,22 +773,28 @@ export default function RelatoriosPage() {
         {agrupado.map(([grupo, equips]) => {
           const contrato =
             agrupamento === 'centro_custo' ? contratoPorCc.get(grupo) : null
+          const nCols = colunasOrdenadas.length || 1
           return (
-            <div key={grupo} className="mb-5 break-inside-avoid">
-              <h2 className="mb-1 border-b border-black pb-0.5 text-sm font-bold">
-                {agrupamento === 'centro_custo' ? 'CC ' : ''}
-                {grupo}
-                {contrato && (
-                  <span className="ml-2 font-normal">
-                    — {contrato.descricao}
-                  </span>
-                )}
-                <span className="float-right text-[10px] font-normal">
-                  {equips.length} equipamento(s)
-                </span>
-              </h2>
+            <div key={grupo} className="mb-6">
               <table className="w-full border-collapse text-[10px]">
                 <thead>
+                  <tr>
+                    <td
+                      colSpan={nCols}
+                      className="border border-black bg-gray-800 px-1.5 py-0.5 text-left font-bold text-white"
+                    >
+                      {agrupamento === 'centro_custo' ? 'CC ' : ''}
+                      {grupo}
+                      {contrato && (
+                        <span className="ml-1 font-normal text-gray-300">
+                          — {contrato.descricao}
+                        </span>
+                      )}
+                      <span className="float-right font-normal text-gray-300">
+                        {equips.length} equipamento(s)
+                      </span>
+                    </td>
+                  </tr>
                   <tr>
                     {colunasOrdenadas.map((c) => (
                       <th
@@ -802,7 +808,7 @@ export default function RelatoriosPage() {
                 </thead>
                 <tbody>
                   {equips.map((e) => (
-                    <tr key={e.id}>
+                    <tr key={e.id} className="break-inside-avoid">
                       {colunasOrdenadas.map((c) => (
                         <td
                           key={c.key}

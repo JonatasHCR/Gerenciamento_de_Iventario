@@ -127,3 +127,28 @@
     @apply font-sans;
     }
 }
+
+@media print {
+  /* Remove restrições de scroll/altura do layout para paginação correta. */
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Remove scroll containers que cortam conteúdo. */
+  * {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* Cabeçalho de tabela (incluindo o título do grupo) se repete em cada
+     página onde a tabela continua — indicador de continuação nativo. */
+  thead {
+    display: table-header-group;
+  }
+
+  /* Nenhuma linha de dados é cortada no meio de uma quebra de página. */
+  tr {
+    break-inside: avoid;
+  }
+}

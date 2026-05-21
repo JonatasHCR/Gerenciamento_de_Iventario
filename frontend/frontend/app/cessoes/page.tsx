@@ -131,6 +131,15 @@ export default function CessoesPage() {
       toast.error('Selecione ao menos um equipamento.')
       return
     }
+    if (dataDevolucao) {
+      const retirada = devolverCessaoState.cedido_em.slice(0, 10)
+      if (dataDevolucao < retirada) {
+        toast.error(
+          `A data de devolução não pode ser anterior à data de retirada (${formatDate(devolverCessaoState.cedido_em)}).`,
+        )
+        return
+      }
+    }
     setSubmitting(true)
     try {
       const iso = dataDevolucao
@@ -385,10 +394,15 @@ export default function CessoesPage() {
               <Input
                 type="date"
                 value={dataDevolucao}
+                min={devolverCessaoState?.cedido_em.slice(0, 10)}
                 onChange={(e) => setDataDevolucao(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Em branco usa hoje
+                Em branco usa hoje · mínimo: data de retirada (
+                {devolverCessaoState
+                  ? formatDate(devolverCessaoState.cedido_em)
+                  : '—'}
+                )
               </p>
             </div>
             <Button
