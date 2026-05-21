@@ -1,183 +1,406 @@
+# InvControl
 
-# PRIMEIRA ETAPA
+Sistema interno de **gerenciamento de inventário** para acompanhar
+equipamentos tecnológicos da empresa (computadores, notebooks, monitores,
+impressoras, scanners, tablets, trenas digitais, etc.) — quem é
+responsável, onde estão, quem cedeu pra quem, e o histórico inteiro do
+ciclo de vida de cada peça.
 
-## IDEALIZAÇÃO DO PROJETO
-
-Este projeto tem como objetivo o controle de inventário da empresa, tanto internos quanto externos.  
-Inicialmente, o sistema será focado no gerenciamento de aparelhos tecnológicos, como computadores, notebooks e periféricos.  
-Futuramente, o escopo será ampliado para incluir o controle de outros bens patrimoniais, como mesas, cadeiras e demais itens físicos.
-
-## MAPEAMENTO DE REQUESITOS
-
-O escopo deste projeto restringe-se ao desenvolvimento de um sistema destinado ao cadastro e ao controle de aparelhos tecnológicos pertencentes à empresa. Além disso, o sistema deverá possibilitar a geração de relatórios gerenciais, com a finalidade de auxiliar no monitoramento e na gestão dos equipamentos, organizando-os por centro de custo ou por responsável (gestor).
-
-### PERFIL: FUNCIONARIO
-
-O usuário com perfil Funcionário possui permissões restritas à gestão dos aparelhos tecnológicos vinculados ao seu cadastro. Suas funcionalidades incluem:
-
-- Cadastrar aparelhos tecnológicos associados ao próprio usuário;
-
-- Editar informações dos aparelhos cadastrados;
-
-- Excluir aparelhos tecnológicos vinculados ao seu perfil.
-
-As operações realizadas por esse perfil são limitadas exclusivamente aos equipamentos sob sua responsabilidade.
-
-### PERFIL: SUB-GESTOR
-
-O usuário com perfil Subgestor possui todas as permissões atribuídas ao perfil Funcionário, acrescidas das seguintes funcionalidades administrativas no âmbito do centro de custo ao qual está vinculado:
-
-- Adicionar funcionários ao centro de custo sob sua responsabilidade;
-
-- Remover funcionários do centro de custo;
-
-- Gerar relatórios contendo o inventário e o controle de todos os equipamentos vinculados ao centro de custo ou ao gestor responsável.
-
-### PERFIL: GESTOR
-
-O usuário com perfil Gestor possui todas as permissões atribuídas ao perfil Sub-gestor, além de funcionalidades adicionais relacionadas à gestão administrativa e contratual:
-
-- Criar contratos vinculados ao seu centro de responsabilidade;
-
-- Editar contratos existentes;
-
-- Excluir contratos;
-
-- Nomear usuários com perfil de Sub-gestor;
-
-- Exportar equipamentos da empresa para contratos de sua responsabilidade.
-
-## MODELAGEM
-
-- Diagrama de Casos de Uso
-
-- Modelo Conceitual
-
-- Modelo Lógico
-
-- Modelo Físico
-
-- Protótipo
-
-
-# SEGUNDA ETAPA
-
-- MVP do projeto
+> Aplicação web com backend FastAPI + Postgres e frontend Next.js 16.
+> Inteiramente containerizada via Docker Compose. Deploy interno;
+> escala confortável para algumas dezenas de usuários simultâneos.
 
 ---
 
-# REGRAS DE NEGÓCIO DETALHADAS
+## ✨ Principais funcionalidades
 
-## CADASTRO E ACESSO DE USUÁRIOS
+- 📦 **Catálogo de equipamentos** com paginação, filtros server-side e
+  busca por qualquer campo (nome, série, patrimônio, IP, responsável,
+  "sem responsável")
+- 🏢 **Centros de Custo (CC)**: organização dos equipamentos por
+  contrato/setor, com hierarquia de papéis (Gestor / Subgestor /
+  Funcionário)
+- 🔄 **Cessões e devoluções** entre CCs com geração automática de
+  Termo de Responsabilidade e Termo de Recebimento em PDF; suporta
+  **devolução parcial em múltiplos lotes**
+- ✉️ **Sistema de solicitações** (entrada em CC, mudança de cargo,
+  cessão por Subgestor → Gestor)
+- 🏷️ **Catálogo dinâmico de tipos** — Admin adiciona/desativa tipos
+  (Tablet, Trena Digital…) sem precisar de deploy
+- 📍 **Catálogo de localizações** — locais nomeados (Sala TI, Almoxarifado…)
+  selecionáveis no form de equipamento; qualquer usuário pode criar nova
+  localização inline (Admin gerencia a lista)
+- 🔔 **Notificações** em tempo real para o Gestor quando um
+  equipamento é devolvido no CC dele
+- 🔒 **Audit log** completo: toda criação, exclusão e mudança crítica
+  fica registrada com autor, timestamp e payload
+- 📊 **Relatórios** filtráveis e exportáveis em CSV / PDF — agrupamento
+  dinâmico por CC, Localização, Responsável, Status, Tipo ou Marca;
+  filtros de CC, Localização (pesquisável), Status e Tipo; atalho
+  multi-select de Gestor auto-popula os CCs; PDF com cabeçalho
+  repetido e indicador "continua na próxima página ↓" em tabelas longas
+- 🔐 JWT com refresh transparente, rate-limit no login, headers de
+  segurança, hash Argon2 das senhas
 
-- **Auto-registro** é permitido: qualquer pessoa pode se cadastrar no sistema, mas o perfil criado será sempre `Funcionario`.
-- Para obter um perfil superior (`Subgestor`, `Gestor`), o usuário deve enviar uma **solicitação** ao Gestor ou Subgestor responsável pelo centro de custo desejado, ou ao Administrador do sistema.
-- Somente `Admin` e `Tecnico_TI` podem criar usuários com qualquer perfil diretamente via API.
-- **Qualquer usuário autenticado pode editar apenas o próprio perfil** (nome, email, senha). Não é permitido alterar o próprio `tipo`.
-- `Admin` e `Tecnico_TI` podem editar o perfil de qualquer usuário, incluindo o campo `tipo`.
-- Apenas `Admin` e `Tecnico_TI` podem excluir usuários.
+---
 
-## VISIBILIDADE DE USUÁRIOS
+## 🚀 Quick start
 
-| Perfil | Quem pode ver |
+### Pré-requisitos
+- Docker + Docker Compose
+
+### Deploy
+```bash
+git clone <repo>
+cd Gerenciamento_de_inventario
+
+# 1. Configure o .env (gere uma SECRET_KEY forte!)
+cp .env.example .env
+# edite o .env: POSTGRES_PASSWORD, SECRET_KEY, ALLOWED_ORIGINS, etc.
+
+# 2. Suba a stack — alembic upgrade head roda automaticamente
+docker compose up -d --build
+```
+
+### Portas (configuráveis no `.env`)
+| Serviço | Padrão (`.env.example`) | Em uso aqui |
+|---|---|---|
+| Postgres | `5432` | `5530` |
+| Backend | `8000` | `8030` |
+| Frontend | `3000` | `3030` |
+
+---
+
+## 👥 Os 5 perfis
+
+Cada usuário tem um **tipo global** (em `User.tipo`) mas a maior parte
+das permissões dentro de um CC depende da **ocupação per-CC** —
+o mesmo usuário pode ser Gestor em um CC e só Funcionário em outro.
+
+| Perfil | Ícone | Resumo |
+|---|---|---|
+| **Admin** | 🔴 | Acesso total e irrestrito a tudo |
+| **Tecnico_TI** | 🟠 | Foco em equipamentos: total acesso ao inventário e associações, leitura ampla nos outros recursos |
+| **Gestor** | 🔵 | Comanda os CCs em que é Gestor (aprova entradas, gerencia membros, cede/devolve equipamentos) |
+| **Subgestor** | 🟢 | Como Gestor mas restrito a adicionar/remover apenas Funcionários; cessões viram **solicitações** ao Gestor |
+| **Funcionario** | ⚫ | Vê e gerencia só seus próprios equipamentos |
+
+> **Importante**: ocupação per-CC ≠ tipo global. Um usuário com
+> `tipo='Gestor'` que é só `Funcionario` no CC X **não** tem
+> privilégios de Gestor em X.
+
+---
+
+## 📋 Funcionalidades por cargo
+
+### 🔴 Admin
+
+**Acesso total — pode tudo, em qualquer CC.**
+
+#### Inventário
+- ✅ Criar, editar, excluir qualquer equipamento, em qualquer CC
+- ✅ Listar todos os equipamentos do sistema
+- ✅ Associar/desassociar equipamentos com qualquer usuário
+
+#### Centros de Custo
+- ✅ Criar, editar, excluir qualquer CC
+- ✅ Adicionar, remover, mudar ocupação de membros em qualquer CC
+- ✅ **Único que pode rebaixar/promover Gestores** (Gestor de CC não pode mexer em outro Gestor, mesmo dentro do próprio CC)
+
+#### Cessões
+- ✅ Criar cessões com equipamentos de qualquer CC
+- ✅ Registrar devolução (total ou parcial) de qualquer cessão
+- ✅ **Excluir qualquer cessão** (itens externos voltam pra "Interno")
+
+#### Solicitações
+- ✅ Aprovar/rejeitar qualquer solicitação (`entrada_cc`, `cargo_inicial`, `cessao`)
+- ✅ **Excluir solicitações em qualquer status** (pendente, aprovada,
+  rejeitada) sem restrição
+
+#### Usuários
+- ✅ Criar usuários com qualquer tipo via `POST /users/admin`
+- ✅ Editar qualquer usuário (incluindo trocar o tipo global)
+- ✅ Excluir qualquer usuário
+
+#### Recursos exclusivos do Admin
+- 🛠️ **Tipos de Equipamento** (`/tipos`): criar/editar/desativar tipos
+  do catálogo (Tablet, Trena Digital, etc.) sem precisar de redeploy
+- 📍 **Localizações** (`/localizacoes`): consolidar/editar/excluir a
+  lista de locais (Sala TI, Almoxarifado, etc.) — qualquer usuário cria
+  inline ao cadastrar equipamento, Admin organiza
+- 📜 **Auditoria** (`/auditoria`): histórico de ações críticas com
+  filtros por ação, recurso e autor
+- 📊 **Relatórios** completos de toda a base
+- 🔔 Recebe notificações de **todas** as devoluções do sistema
+
+---
+
+### 🟠 Tecnico_TI
+
+**Equipamentos: acesso total. Outros recursos: leitura ampla.**
+
+#### Inventário
+- ✅ Criar, editar, excluir equipamentos em qualquer CC
+- ✅ Listar todos
+- ✅ Gerenciar associações usuário–equipamento
+
+#### Cessões
+- ✅ Criar cessões com qualquer equipamento
+- ✅ Registrar devolução de qualquer cessão
+- ❌ Não pode excluir cessões (apenas Admin/Gestor envolvido)
+
+#### Centros de Custo
+- 👁️ Lista todos os CCs e seus membros (leitura)
+- ❌ Não cria, não edita, não remove
+- ❌ Não aprova solicitações de entrada
+
+#### Usuários
+- 👁️ Lista todos os usuários
+- ✅ Edita apenas o **próprio perfil**
+- ❌ Não cria nem exclui outros usuários
+
+#### Relatórios
+- ✅ Acesso completo aos relatórios
+
+#### Notificações
+- 🔔 Recebe **todas** as devoluções do sistema (sem restrição de CC)
+
+---
+
+### 🔵 Gestor
+
+**Comanda os CCs em que tem ocupação `Gestor`.**
+
+#### Nos CCs em que é Gestor
+- ✅ **Editar e excluir** o CC
+- ✅ Adicionar, remover membros
+- ✅ Promover Funcionário/Subgestor → outro cargo
+- ❌ **Não pode mexer no cargo de outro Gestor** (mesmo no próprio CC) — só Admin faz isso
+- ✅ Aprovar/rejeitar solicitações de entrada (`entrada_cc`)
+- ✅ Aprovar/rejeitar solicitações de cessão de Subgestores
+  (`solicitacao.cessao`)
+- ✅ Convidar usuários via `POST /solicitacoes/convite-cc`
+- ✅ Gerenciar equipamentos (criar, editar, excluir, associar a qualquer membro)
+- ✅ **Criar cessões** com equipamentos do CC
+- ✅ Registrar devoluções
+- ✅ **Excluir cessões** envolvendo seu CC
+- 🔔 Recebe notificações de devoluções no(s) CC(s) dele
+
+#### Em outros CCs
+- 👁️ Pode listar os CCs (precisa pra solicitar entrada em outros)
+- ❌ Sem privilégios especiais
+
+#### Relatórios
+- ✅ Acesso aos relatórios (limitado aos seus CCs se não for Admin/TI)
+
+#### Solicitações
+- ✅ Pode pedir entrada em outros CCs com qualquer cargo
+- ✅ Pode pedir upgrade pra outro tipo global (`cargo_inicial`) — só Admin aprova
+
+---
+
+### 🟢 Subgestor
+
+**Como Gestor, mas restrito a Funcionários no CC.**
+
+#### Nos CCs em que é Subgestor
+- ✅ Adicionar **apenas Funcionários** ao CC
+- ✅ Remover **apenas Funcionários** do CC
+- ✅ Aprovar/rejeitar solicitações de entrada **com cargo Funcionário**
+- ❌ Não pode promover ninguém a Gestor/Subgestor
+- ❌ Não pode editar nem excluir o CC
+- ✅ Gerenciar equipamentos do CC (criar, editar, associar)
+- ⚠️ **Não pode criar cessão diretamente** — envia
+  `solicitacao.cessao` ao Gestor; o Gestor aprova → cessão real é criada
+- ✅ Registrar devolução de cessões existentes
+- ❌ Não pode excluir cessões
+
+#### Em outros CCs
+- 👁️ Lista os CCs
+- ✅ Pode solicitar entrada em outros
+
+#### Relatórios
+- ✅ Acesso aos relatórios dos seus CCs
+
+---
+
+### ⚫ Funcionário
+
+**Vê e gerencia apenas o que é dele.**
+
+#### Inventário
+- 👁️ Lista **apenas os equipamentos associados a ele** (mesmo no CC dele)
+- ✅ Criar novos equipamentos no CC dele (são **auto-associados** a ele)
+- ✅ Editar/excluir **apenas os próprios**
+
+#### Centros de Custo
+- 👁️ Lista todos os CCs (necessário pra poder solicitar entrada)
+- ✅ Pode pedir **entrada em outro CC** via solicitação
+- ✅ Pode **sair do próprio CC** (self-removal, exceto se for único
+  Gestor — caso impossível pra Funcionário, mas a regra vale)
+
+#### Cessões
+- ❌ Não cria, não exclui
+- ✅ Pode **registrar devolução** de qualquer cessão envolvendo seu CC
+  (qualquer membro do CC pode receber o equipamento de volta —
+  fica registrado quem foi no termo de recebimento)
+
+#### Solicitações
+- ✅ Cria solicitação de entrada em CCs
+- ✅ Cria solicitação de upgrade de cargo (`cargo_inicial`)
+- ✅ Cancela apenas as **próprias solicitações pendentes**
+
+#### Usuários
+- 👁️ Lista apenas usuários **do mesmo CC**
+- ✅ Edita apenas o **próprio perfil** (nome, email, senha)
+
+---
+
+## 🔔 Notificações em tempo real (polling 5s)
+
+| Quem | O quê vê |
 |---|---|
-| `Admin` / `Tecnico_TI` | Todos os usuários |
-| `Gestor` / `Subgestor` | Todos os usuários do sistema (para poder enviar solicitações de associação) |
-| `Funcionario` | Apenas usuários associados ao mesmo centro de custo |
+| Qualquer perfil | Badge na sidebar com solicitações pendentes |
+| Convidado | Sino na topbar quando recebe convite pra CC |
+| **Gestor** | Badge "Cessões" quando alguém devolve equipamento em CC dele |
+| **Admin / Tecnico_TI** | Badge "Cessões" para **todas** as devoluções do sistema |
 
-## REGRAS POR RECURSO
+---
 
-### Eletrônicos (`/eletronicos`)
+## 🏗️ Arquitetura (alto nível)
 
-| Operação | Admin / TI | Gestor | Subgestor | Funcionario |
-|---|---|---|---|---|
-| Listar | Todos | Apenas do seu CC | Apenas do seu CC | Apenas os associados a si |
-| Criar | Qualquer CC | Apenas seu CC | Apenas seu CC | Apenas seu CC |
-| Editar | Qualquer | Apenas do seu CC | Apenas do seu CC | Apenas os associados a si |
-| Excluir | Qualquer | Apenas do seu CC | Apenas do seu CC | Apenas os associados a si |
+```
+┌──────────────────┐         ┌──────────────────┐         ┌─────────────┐
+│  Browser         │ HTTPS   │  Next.js 16      │  HTTP   │  FastAPI    │
+│  Frontend SPA    ├────────▶│  (proxy reverso) ├────────▶│  Backend    │
+│  Port 3030       │         │  + páginas SSR   │         │  Port 8030  │
+└──────────────────┘         └──────────────────┘         └──────┬──────┘
+                                                                  │ asyncpg
+                                                                  ▼
+                                                          ┌─────────────┐
+                                                          │ PostgreSQL  │
+                                                          │ Port 5530   │
+                                                          └─────────────┘
+```
 
-- Um eletrônico pertence a um centro de custo via o campo `centro_custo`.
-- Um Funcionário gerencia apenas os eletrônicos diretamente associados a ele via `tb_associacao_user_eletronico`.
+**Camadas no backend**: `Routers → Services → Models`. Cada rota
+injeta um `UserContext` (usuário + ocupações por CC) e a autorização
+é feita no service.
 
-### Contratos (`/contratos`)
+**Proxy do frontend**: `/api/*` no Next.js encaminha pro backend
+internamente — o browser nunca conhece o host do backend.
 
-| Operação | Admin / TI | Gestor           | Subgestor        | Funcionario                |
-| -------- | ---------- | ---------------- | ---------------- | -------------------------- |
-| Listar   | Todos      | Apenas do seu CC | Apenas do seu CC | Apenas do seu CC (leitura) |
-| Criar    | Qualquer   | Qualquer         | ❌                | ❌                          |
-| Editar   | Qualquer   | Apenas seu CC    | ❌                | ❌                          |
-| Excluir  | Qualquer   | Apenas seu CC    | ❌                | ❌                          |
+Detalhes em [backend/README.md](backend/README.md) e
+[frontend/frontend/README.md](frontend/frontend/README.md).
 
-- Funcionário pode listar contratos do seu centro de custo apenas para leitura, por exemplo, para identificar a qual gestor/subgestor enviar uma solicitação de associação.
+---
 
-### Associações Usuário–Contrato (`/associacoes/contratos`)
+## 🛠️ Stack
 
-| Operação | Admin / TI | Gestor | Subgestor | Funcionario |
-|---|---|---|---|---|
-| Listar | Todos | Apenas do seu CC | Apenas do seu CC | Apenas do seu CC |
-| Criar | Qualquer | Seu CC, qualquer ocupação | Seu CC, apenas `Funcionario` | ❌ |
-| Editar ocupação | Qualquer | Apenas seu CC | ❌ | ❌ |
-| Remover | Qualquer | Apenas seu CC | Seu CC, apenas `Funcionario` | ❌ |
+| Camada | Tecnologia |
+|---|---|
+| Backend | Python 3.13, FastAPI, SQLAlchemy 2 (async), Pydantic v2, Alembic, PyJWT, pwdlib (Argon2), slowapi |
+| Banco | PostgreSQL 16 (asyncpg) |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind v4, shadcn/ui, next-themes, sonner |
+| Infra | Docker + Docker Compose |
+| Qualidade | Ruff (lint + format), pytest + pytest-asyncio + factory-boy (97% coverage), ESLint, TypeScript strict |
 
-- Gestor pode nomear Subgestores (criar associação com `ocupacao = 'Subgestor'`).
-- Subgestor só pode adicionar e remover Funcionários — nunca alterar ocupações de Gestores ou outros Subgestores.
+---
 
-### Associações Usuário–Eletrônico (`/associacoes/eletronicos`)
+## 📚 Documentação técnica
 
-| Operação | Admin / TI | Gestor | Subgestor | Funcionario |
-|---|---|---|---|---|
-| Listar | Todos | Do seu CC | Do seu CC | Apenas as próprias |
-| Criar | Qualquer | Eletronico do CC | Eletronico do CC | Apenas para si mesmo |
-| Remover | Qualquer | Eletronico do CC | Eletronico do CC | Apenas as próprias |
+- [backend/README.md](backend/README.md) — endpoints, modelo de autorização per-CC, migrations, testes
+- [frontend/frontend/README.md](frontend/frontend/README.md) — estrutura de páginas, API client, proxy, theming
+- [CLAUDE.md](CLAUDE.md) — guia interno para futuras manutenções com Claude Code
 
-### Cessões (`/cessoes`)
+---
 
-Histórico persistido de cessões de equipamentos. Permite cessão parcial — múltiplas devoluções (lotes) por cessão até que tudo retorne.
+## 📜 Regras de negócio detalhadas
 
-| Operação | Admin / TI | Gestor (do CC) | Subgestor (do CC) | Demais membros do CC |
-|---|---|---|---|---|
-| Listar | Todas | Suas + envolvendo seu CC | Suas + envolvendo seu CC | Apenas as próprias |
-| Criar | Qualquer CC | Apenas equipamentos dos seus CCs | ❌ — envia **solicitação** ao Gestor | ❌ |
-| Devolver (registrar recebimento) | Qualquer | Sim | Sim | **Sim** — qualquer membro do CC pode receber |
-| Excluir | **Qualquer (sem restrição)** | Apenas cessões com itens dos seus CCs | ❌ | ❌ |
+### Cadastro de usuários
 
-- A devolução pode ser **parcial**: ao clicar em "Devolver" o usuário escolhe quais equipamentos estão retornando. A cessão fica em estado `Parcial X/Y` até a última peça voltar.
-- Cada lote de devolução gera seu próprio **Termo de Recebimento**, identificado por número (#1, #2, …), reabrível a qualquer momento.
-- O **Termo de Recebimento** registra o **responsável que devolveu** + o **membro do CC que recebeu** (qualquer ocupação) + uma assinatura de **Visto do Gestor do CC**.
-- Ao excluir uma cessão em aberto, os itens ainda externos voltam para `Interno` e a localização é zerada.
+- **Auto-registro público** (`POST /users/`) sempre cria
+  `tipo='Funcionario'`, mesmo que o cliente envie outro valor.
+- O auto-registro pode ser restrito a domínios específicos via
+  `ALLOWED_EMAIL_DOMAINS` no `.env` (ex.: só aceita
+  `@ufcengenharia.com.br` ou `@sememail.com`).
+- Senha mínima de **8 caracteres** (validado no backend e no frontend).
+- Para cargos acima de Funcionário, o usuário envia
+  `solicitacao.cargo_inicial` — só Admin aprova.
+
+### Cessões com devolução parcial
+
+- Uma cessão pode ter múltiplos lotes de devolução.
+- Cada lote gera seu próprio Termo de Recebimento numerado
+  (`#1`, `#2`, …).
+- Quando todos os equipamentos retornam, o status muda automaticamente
+  para `devolvida`.
+- **Qualquer membro do CC** (de qualquer ocupação) pode registrar a
+  devolução. Quem registrou fica gravado em `devolvida_por_id` e
+  aparece no termo.
 
 ### Solicitação de cessão (Subgestor → Gestor)
 
-Como Subgestor não pode criar cessões diretamente, o fluxo de cessão para ele passa por uma solicitação:
+1. Subgestor seleciona equipamentos do seu CC + responsável + CC destino
+2. Sistema cria `Solicitacao(tipo='cessao')`
+3. Gestor do CC origem vê a solicitação em `/solicitacoes` com link
+   pra "ver termo" (proposta)
+4. Gestor aprova → `Cessao` real é criada automaticamente; itens
+   marcados como `Externo`
+5. Gestor rejeita → nada acontece com os itens
 
-1. Subgestor abre `/equipamentos/ceder`, seleciona equipamentos do **seu CC** (CC único), define responsável e CC destino, e envia a solicitação.
-2. A solicitação aparece em `/solicitacoes` para o **Gestor do CC de origem** (ou Admin), com link para o **Termo (proposta)** mostrando todos os equipamentos.
-3. Gestor aprova → o backend cria a `Cessao` automaticamente, marca os equipamentos como `Externo` e gera o termo definitivo.
-4. Gestor rejeita → status `rejeitada`, nada acontece com os itens.
+### Audit log
 
-### Notificações ao supervisor
+Eventos registrados em `tb_audit_log`:
 
-Quando um membro do CC registra a devolução de um equipamento, o sistema notifica via badge no menu lateral (item **Cessões**):
+- `cessao.create`, `cessao.devolver`, `cessao.delete`
+- `solicitacao.aprovar`, `solicitacao.rejeitar`, `solicitacao.cancelar`,
+  `solicitacao.delete`
+- `user.delete`, `user.tipo_change`
+- `contrato.create`, `contrato.update`, `contrato.delete`
+- `cc.membro.add`, `cc.membro.ocupacao_change`, `cc.membro.remove`,
+  `cc.membro.self_remove`
 
-- **Admin** e **Tecnico_TI** recebem notificações de **todas** as devoluções, **sem restrição de CC**.
-- **Gestor** recebe notificações **apenas** das devoluções em CCs onde tem ocupação `Gestor`.
-- Polling de 5 s atualiza o contador. O badge zera quando o supervisor abre a página `/cessoes`. Cada devolução não-vista também é marcada com um selo "Novo" inline.
-- Estado de "visto" é **compartilhado** entre supervisores — quando qualquer Admin/TI/Gestor reconhece a devolução, a notificação some para os demais.
+Cada entry tem `user_id` (quem fez), `target_type`, `target_id`,
+`payload` (snapshot dos campos relevantes) e `criado_em`. Acesso à
+visualização em `/auditoria` é restrito ao Admin.
 
-## FLUXO DE SOLICITAÇÃO DE ASSOCIAÇÃO A CENTRO DE CUSTO
+---
 
-1. Funcionário visualiza a lista de contratos disponíveis e identifica o centro de custo desejado.
-2. Funcionário envia uma solicitação ao Gestor ou Subgestor do centro de custo.
-3. Gestor ou Subgestor aprova ou rejeita a solicitação.
-4. Em caso de aprovação, a associação é criada automaticamente com a `ocupacao` solicitada (Subgestor só pode aprovar `Funcionario`).
+## 🔐 Segurança
 
-### Outros tipos de solicitação
+- JWT assinado com HS256, TTL configurável (`ACCESS_TOKEN_EXPIRE_MINUTES`,
+  default 60 min)
+- Senhas com hash **Argon2id** via pwdlib
+- Rate limit no login (default `10/minute`) — configurável via
+  `LOGIN_RATE_LIMIT`
+- CORS apertado (`ALLOWED_ORIGINS` no `.env`)
+- Headers de segurança: `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy`, `Permissions-Policy`
+- GZip middleware no backend
+- `.env` no `.gitignore` (use `.env.example` como referência)
 
-- **`convite_cc`**: Gestor/Subgestor convida um usuário existente para entrar no seu CC. O próprio convidado aceita ou rejeita.
-- **`cargo_inicial`**: usuário pede ao Admin um cargo global acima de `Funcionario` (`Subgestor`, `Gestor`, `Tecnico_TI`).
-- **`cessao`**: Subgestor solicita cessão de equipamentos ao Gestor do CC (ver acima).
+---
 
-### Exclusão de solicitações
+## 🧪 Testes
 
-- **Admin** pode excluir **qualquer solicitação**, em **qualquer status** (`pendente`, `aprovada`, `rejeitada`), sem restrição de CC.
-- O próprio solicitante pode cancelar apenas suas solicitações `pendente`.
+```bash
+cd backend
+task test
+```
+
+187 testes, 97% de cobertura. Suíte usa SQLite em memória via override
+de dependência.
+
+---
+
+## 📦 Migração
+
+```bash
+# Migrations (rola automático no entrypoint do container)
+docker compose exec backend alembic upgrade head
+
+# Status
+docker compose exec backend alembic current
+
+```
