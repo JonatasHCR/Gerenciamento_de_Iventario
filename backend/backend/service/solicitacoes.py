@@ -135,11 +135,63 @@ class SolicitacaoService:
             ]
         return data
 
+    async def _batch_eletronicos(
+        self, sol_ids: list[int]
+    ) -> dict[int, list[Eletronico]]:
+        if not sol_ids:
+            return {}
+        result = await self.session.execute(
+            select(
+                Eletronico,
+                SolicitacaoEletronico.solicitacao_id,
+            )
+            .join(
+                SolicitacaoEletronico,
+                SolicitacaoEletronico.eletronico_id == Eletronico.id,
+            )
+            .where(
+                SolicitacaoEletronico.solicitacao_id.in_(sol_ids)
+            )
+        )
+        batch: dict[int, list[Eletronico]] = {}
+        for el, sol_id in result.all():
+            batch.setdefault(sol_id, []).append(el)
+        return batch
+
+    async def _serializar_lista(
+        self, sols: list[Solicitacao]
+    ) -> list[dict]:
+        cessao_ids = [s.id for s in sols if s.tipo == 'cessao']
+        batch = await self._batch_eletronicos(cessao_ids)
+        out = []
+        for sol in sols:
+            data = {
+                'id': sol.id,
+                'tipo': sol.tipo,
+                'status': sol.status,
+                'solicitante_id': sol.solicitante_id,
+                'centro_custo': sol.centro_custo,
+                'ocupacao_solicitada': sol.ocupacao_solicitada,
+                'convidado_por_id': sol.convidado_por_id,
+                'cargo_solicitado': sol.cargo_solicitado,
+                'centro_custo_destino': sol.centro_custo_destino,
+                'responsavel': sol.responsavel,
+                'criado_em': sol.criado_em,
+                'eletronicos': [],
+            }
+            if sol.tipo == 'cessao':
+                data['eletronicos'] = [
+                    self._eletronico_to_dict(e)
+                    for e in batch.get(sol.id, [])
+                ]
+            out.append(data)
+        return out
+
     async def get(self, ctx: UserContext):
         if ctx.is_privileged:
             result = await self.session.execute(select(Solicitacao))
             sols = list(result.scalars().all())
-            return [await self._serialize(s) for s in sols]
+            return await self._serializar_lista(sols)
 
         gestor_ccs = [
             cc for cc, ocup in ctx.ocupacoes.items() if ocup == 'Gestor'
@@ -185,7 +237,7 @@ class SolicitacaoService:
             select(Solicitacao).where(or_(*conditions))
         )
         sols = list(result.scalars().all())
-        return [await self._serialize(s) for s in sols]
+        return await self._serializar_lista(sols)
 
     async def create_entrada_cc(
         self,
@@ -483,6 +535,34 @@ class SolicitacaoService:
                 )
             )
 
+    async def _aprovar_entrada_cc(self, sol: Solicitacao) -> None:
+        assoc = AssociacaoUserContrato(
+            user_id=sol.solicitante_id,
+            centro_custo=sol.centro_custo,
+            ocupacao=sol.ocupacao_solicitada,
+        )
+        try:
+            self.session.add(assoc)
+            await self.session.flush()
+        except IntegrityError:
+            await self.session.rollback()
+            raise HTTPException(
+                status_code=HTTPStatus.CONFLICT,
+                detail='Usuário já está associado a este CC.',
+            )
+
+    async def _aprovar_cargo_inicial(self, sol: Solicitacao) -> None:
+        result = await self.session.execute(
+            select(User).where(User.id == sol.solicitante_id)
+        )
+        user = result.scalar_one_or_none()
+        if user is None:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail='Usuário não encontrado.',
+            )
+        user.tipo = sol.cargo_solicitado
+
     async def aprovar(self, solicitacao_id: int, ctx: UserContext):
         sol = await self._get_by_id(solicitacao_id)
 
@@ -495,33 +575,11 @@ class SolicitacaoService:
         await self._assert_can_decide(sol, ctx)
 
         if sol.tipo == 'entrada_cc':
-            assoc = AssociacaoUserContrato(
-                user_id=sol.solicitante_id,
-                centro_custo=sol.centro_custo,
-                ocupacao=sol.ocupacao_solicitada,
-            )
-            try:
-                self.session.add(assoc)
-                await self.session.flush()
-            except IntegrityError:
-                await self.session.rollback()
-                raise HTTPException(
-                    status_code=HTTPStatus.CONFLICT,
-                    detail='Usuário já está associado a este CC.',
-                )
+            await self._aprovar_entrada_cc(sol)
         elif sol.tipo == 'cessao':
             await self._criar_cessao_da_solicitacao(sol, ctx)
         else:
-            result = await self.session.execute(
-                select(User).where(User.id == sol.solicitante_id)
-            )
-            user = result.scalar_one_or_none()
-            if user is None:
-                raise HTTPException(
-                    status_code=HTTPStatus.NOT_FOUND,
-                    detail='Usuário não encontrado.',
-                )
-            user.tipo = sol.cargo_solicitado
+            await self._aprovar_cargo_inicial(sol)
 
         sol.status = 'aprovada'
         audit_log(

@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.model.associacao_user_contrato import AssociacaoUserContrato
 from backend.model.contratos import Contrato
 from backend.model.user import User
-from backend.schemas.associacoes import AssociacaoUserContratoCreate
 from backend.schemas.contratos import ContratoCreate
 from backend.security.dependencies import UserContext
 from backend.service.associacoes import AssociacaoUserContratoService
@@ -79,22 +78,19 @@ class ContratoService:
                     'descricao': novo.descricao,
                 },
             )
+            # Associa o criador como Gestor na mesma transação
+            assoc_service = AssociacaoUserContratoService(self.session)
+            await assoc_service.add_gestor_inicial(
+                ctx.user.id, novo.centro_custo, ctx
+            )
             await self.session.commit()
             await self.session.refresh(novo)
         except IntegrityError:
+            await self.session.rollback()
             raise HTTPException(
                 status_code=HTTPStatus.CONFLICT,
                 detail='numero de centro de custo já existe',
             )
-
-        service_associacao = AssociacaoUserContratoService(self.session)
-        data = AssociacaoUserContratoCreate(
-            user_id=ctx.user.id,
-            centro_custo=novo.centro_custo,
-            ocupacao='Gestor',
-        )
-        await service_associacao.create(data, ctx)
-
         return novo
 
     async def update(

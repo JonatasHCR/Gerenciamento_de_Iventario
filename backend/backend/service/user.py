@@ -53,35 +53,7 @@ class UserService:
         )
         return result.scalars().all()
 
-    async def create(self, user: UserCreate, ctx: UserContext | None = None):
-        """
-        - cria sempre como Funcionario.
-        - Admin/TI → pode criar qualquer tipo.
-        - Demais perfis logados → 403.
-        """
-        if ctx is not None and not ctx.is_privileged:
-            raise HTTPException(
-                status_code=HTTPStatus.FORBIDDEN,
-                detail='Apenas Admin pode criar usuários '
-                'com tipo específico. Use o auto-registro.',
-            )
-
-        # Auto-registro: forçar tipo Funcionario e validar domínio do email
-        if ctx is None:
-            user = user.model_copy(update={'tipo': 'Funcionario'})
-
-            allowed = _allowed_email_domains()
-            if allowed:
-                dom = user.email.split('@', 1)[1].lower()
-                if dom not in allowed:
-                    raise HTTPException(
-                        status_code=HTTPStatus.FORBIDDEN,
-                        detail=(
-                            f'Auto-registro restrito a emails dos '
-                            f'domínios: {", ".join(sorted(allowed))}.'
-                        ),
-                    )
-
+    async def _save_user(self, user: UserCreate) -> User:
         existing = await self.session.execute(
             select(User).where(User.email == user.email)
         )
@@ -90,14 +62,38 @@ class UserService:
                 status_code=HTTPStatus.CONFLICT,
                 detail='Usuário com este email já existe.',
             )
-
         novo = User(**user.model_dump())
         novo.senha = self.security.get_senha_hash(novo.senha)
-
         self.session.add(novo)
         await self.session.commit()
         await self.session.refresh(novo)
         return novo
+
+    async def create_auto_registro(self, user: UserCreate) -> User:
+        """Auto-registro público: sempre cria como Funcionario."""
+        user = user.model_copy(update={'tipo': 'Funcionario'})
+        allowed = _allowed_email_domains()
+        if allowed:
+            dom = user.email.split('@', 1)[1].lower()
+            if dom not in allowed:
+                raise HTTPException(
+                    status_code=HTTPStatus.FORBIDDEN,
+                    detail=(
+                        f'Auto-registro restrito a emails dos '
+                        f'domínios: {", ".join(sorted(allowed))}.'
+                    ),
+                )
+        return await self._save_user(user)
+
+    async def create_admin(self, user: UserCreate, ctx: UserContext) -> User:
+        """Criação pelo Admin: permite qualquer tipo."""
+        if not ctx.is_privileged:
+            raise HTTPException(
+                status_code=HTTPStatus.FORBIDDEN,
+                detail='Apenas Admin pode criar usuários '
+                'com tipo específico. Use o auto-registro.',
+            )
+        return await self._save_user(user)
 
     async def update(self, user_id: int, user: UserUpdate, ctx: UserContext):
         """

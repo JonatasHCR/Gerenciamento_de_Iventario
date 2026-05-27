@@ -1,7 +1,8 @@
 from http import HTTPStatus
 
 from fastapi import HTTPException
-from sqlalchemy import select, update as sa_update
+from sqlalchemy import select
+from sqlalchemy import update as sa_update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -78,22 +79,22 @@ class LocalizacaoService:
         if 'nome' in payload:
             payload['nome'] = payload['nome'].strip()
 
-        for k, v in payload.items():
-            setattr(loc, k, v)
-
-        # Cascade rename no campo `localizacao` dos eletrônicos
-        if (
-            'nome' in payload
-            and payload['nome'] != nome_antigo
-        ):
-            await self.session.execute(
-                sa_update(Eletronico)
-                .where(Eletronico.localizacao == nome_antigo)
-                .values(localizacao=payload['nome'])
-                .execution_options(synchronize_session='fetch')
-            )
-
         try:
+            for k, v in payload.items():
+                setattr(loc, k, v)
+
+            # Cascade rename no campo `localizacao` dos eletrônicos
+            if (
+                'nome' in payload
+                and payload['nome'] != nome_antigo
+            ):
+                await self.session.execute(
+                    sa_update(Eletronico)
+                    .where(Eletronico.localizacao == nome_antigo)
+                    .values(localizacao=payload['nome'])
+                    .execution_options(synchronize_session='fetch')
+                )
+
             await self.session.commit()
             await self.session.refresh(loc)
             return loc

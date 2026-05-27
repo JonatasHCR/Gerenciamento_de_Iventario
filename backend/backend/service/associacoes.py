@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.model.associacao_user_contrato import AssociacaoUserContrato
 from backend.model.associacao_user_eletronico import AssociacaoUserEletronico
+from backend.model.contratos import Contrato
 from backend.model.eletronicos import Eletronico
 from backend.schemas.associacoes import (
     AssociacaoUserContratoCreate,
@@ -58,6 +59,35 @@ class AssociacaoUserContratoService:
             )
         return assoc
 
+    async def add_gestor_inicial(
+        self, user_id: int, centro_custo: str, ctx: UserContext
+    ) -> None:
+        """Registra o criador do CC como primeiro Gestor sem commit.
+
+        Chamado por ContratoService dentro da mesma transação, por isso
+        não emite commit — o chamador é responsável pelo commit final.
+        """
+        assoc = AssociacaoUserContrato(
+            user_id=user_id,
+            centro_custo=centro_custo,
+            ocupacao='Gestor',
+        )
+        self.session.add(assoc)
+        audit_log(
+            self.session,
+            action='cc.membro.add',
+            user_id=ctx.user.id,
+            target_type='contrato',
+            target_id=None,
+            payload={
+                'centro_custo': centro_custo,
+                'usuario_id': user_id,
+                'ocupacao': 'Gestor',
+                'via_criacao_cc': True,
+            },
+        )
+        await self.session.flush()
+
     async def create(
         self, data: AssociacaoUserContratoCreate, ctx: UserContext
     ):
@@ -67,11 +97,18 @@ class AssociacaoUserContratoService:
         - Gestor do CC → qualquer ocupação.
         - Subgestor do CC → apenas ocupação 'Funcionario'.
         - Demais → 403.
-
-        Se o CC ainda não tem associações (CC recém-criado pelo
-        método create do ContratoService) a primeira associação é
-        permitida sem assert (essa lógica é interna e segura).
         """
+        cc_result = await self.session.execute(
+            select(Contrato).where(
+                Contrato.centro_custo == data.centro_custo
+            )
+        )
+        if cc_result.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail='Centro de custo não encontrado.',
+            )
+
         result = await self.session.execute(
             select(AssociacaoUserContrato).where(
                 AssociacaoUserContrato.centro_custo == data.centro_custo
