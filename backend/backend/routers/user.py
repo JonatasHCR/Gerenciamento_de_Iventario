@@ -36,7 +36,7 @@ async def create(
     Admin/TI devem usar o endpoint autenticado
     """
     service = UserService(session)
-    return await service.create(user, ctx=None)
+    return await service.create_auto_registro(user)
 
 
 @router_user.post(
@@ -51,7 +51,7 @@ async def create_admin(
 ):
     """Criação de usuário com tipo específico"""
     service = UserService(session)
-    return await service.create(user, ctx=ctx)
+    return await service.create_admin(user, ctx)
 
 
 @router_user.put(
