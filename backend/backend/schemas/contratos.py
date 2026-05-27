@@ -3,7 +3,10 @@ from pydantic import BaseModel, Field
 
 class ContratoCreate(BaseModel):
     centro_custo: str = Field(
-        ..., min_length=1, max_length=4, description='Centro de custo do contrato'
+        ...,
+        min_length=1,
+        max_length=4,
+        description='Centro de custo do contrato',
     )
     descricao: str = Field(
         ...,

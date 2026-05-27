@@ -18,6 +18,7 @@ T_OAuth2bearer = Annotated[
     str, Depends(OAuth2PasswordBearer(tokenUrl='auth/login'))
 ]
 
+_settings = Settings()
 _PRIVILEGED = frozenset({'Admin'})
 
 
@@ -91,8 +92,8 @@ class Dependencies:
         try:
             payload = decode(
                 token,
-                Settings().SECRET_KEY,
-                algorithms=[Settings().ALGORITHM],
+                _settings.SECRET_KEY,
+                algorithms=[_settings.ALGORITHM],
             )
         except (DecodeError, ExpiredSignatureError):
             raise HTTPException(
@@ -125,11 +126,12 @@ class Dependencies:
         session: T_AsyncSession,
     ) -> UserContext:
         result = await session.execute(
-            select(AssociacaoUserContrato).where(
-                AssociacaoUserContrato.user_id == user.id
-            )
+            select(
+                AssociacaoUserContrato.centro_custo,
+                AssociacaoUserContrato.ocupacao,
+            ).where(AssociacaoUserContrato.user_id == user.id)
         )
-        rows = result.scalars().all()
+        rows = result.all()
         centros_custo = [r.centro_custo for r in rows]
         ocupacoes = {r.centro_custo: r.ocupacao for r in rows}
         return UserContext(
