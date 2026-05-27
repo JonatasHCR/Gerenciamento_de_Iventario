@@ -1,4 +1,5 @@
 import logging
+import warnings
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +25,15 @@ from backend.routers.user import router_user
 
 # Logging básico em formato estruturado-leve.
 # Em produção, redirecione stdout para um agregador (Loki, CloudWatch, etc.).
+# slowapi 0.1.9 usa asyncio.iscoroutinefunction (deprecated no Py 3.14+).
+# Remover quando o slowapi lançar uma versão com inspect.iscoroutinefunction.
+warnings.filterwarnings(
+    'ignore',
+    message="'asyncio.iscoroutinefunction' is deprecated",
+    category=DeprecationWarning,
+    module='slowapi',
+)
+
 logging.basicConfig(
     level=logging.INFO,
     format=(

@@ -41,7 +41,7 @@ dev = [
 
 [tool.ruff]
 line-length = 79
-extend-exclude = ['migrations']
+extend-exclude = ['migrations', 'seed.py']
 
 [tool.ruff.lint]
 preview = true
