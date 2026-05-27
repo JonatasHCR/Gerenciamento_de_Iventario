@@ -2,6 +2,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     ForeignKeyConstraint,
+    Index,
     Integer,
     String,
 )
@@ -35,4 +36,7 @@ class AssociacaoUserContrato(Base):
             "ocupacao IN ('Gestor', 'Funcionario','Subgestor')",
             name='check_ocupacao_valid',
         ),
+        # user_id é 2ª coluna da PK composta (centro_custo, user_id).
+        # get_user_context() filtra só por user_id em toda requisição.
+        Index('ix_assoc_contrato_user_id', 'user_id'),
     )

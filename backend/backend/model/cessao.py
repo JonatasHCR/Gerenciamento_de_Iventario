@@ -5,6 +5,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
 )
@@ -27,7 +28,10 @@ class Cessao(Base):
         DateTime(timezone=True), nullable=False, default=_now_sp,
     )
     cedido_por_id = Column(
-        Integer, ForeignKey('tb_users.id', ondelete='SET NULL'), nullable=True
+        Integer,
+        ForeignKey('tb_users.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
     )
     devolvida_em = Column(DateTime(timezone=True), nullable=True)
     devolvida_por_id = Column(
@@ -62,3 +66,10 @@ class CessaoEletronico(Base):
     gestor_visto_em = Column(DateTime(timezone=True), nullable=True)
 
     cessao = relationship('Cessao', back_populates='eletronicos_assoc')
+
+    __table_args__ = (
+        # recebimentos_pendentes_gestor() e marcar_recebimentos_vistos()
+        # filtram WHERE devolvido_em IS NOT NULL AND gestor_visto_em IS NULL.
+        Index('ix_ce_devolvido_em', 'devolvido_em'),
+        Index('ix_ce_gestor_visto_em', 'gestor_visto_em'),
+    )

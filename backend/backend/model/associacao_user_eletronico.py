@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKeyConstraint, Integer
+from sqlalchemy import Column, ForeignKeyConstraint, Index, Integer
 
 from backend.core.database import Base
 
@@ -24,4 +24,7 @@ class AssociacaoUserEletronico(Base):
             ondelete='CASCADE',
             onupdate='CASCADE',
         ),
+        # eletronico_id é 2ª coluna da PK (user_id, eletronico_id).
+        # _base_query() filtra por eletronico_id.in_(...) para Funcionários.
+        Index('ix_assoc_eletronico_eletronico_id', 'eletronico_id'),
     )

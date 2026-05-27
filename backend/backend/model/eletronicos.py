@@ -21,11 +21,11 @@ class Eletronico(Base):
     marca = Column(String(100))
     tipo = Column(String(100), nullable=False)
     modelo = Column(String(100))
-    status = Column(String(50), nullable=False)
+    status = Column(String(50), nullable=False, index=True)
     ip = Column(String(15))
     localizacao = Column(String(255))
     descricao = Column(Text)
-    centro_custo = Column(String(4), nullable=False)
+    centro_custo = Column(String(4), nullable=False, index=True)
 
     __table_args__ = (
         ForeignKeyConstraint(

@@ -6,6 +6,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     String,
 )
@@ -25,7 +26,7 @@ class Solicitacao(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     tipo = Column(String(20), nullable=False)
     status = Column(String(20), nullable=False, default='pendente')
-    solicitante_id = Column(Integer, nullable=False)
+    solicitante_id = Column(Integer, nullable=False, index=True)
 
     # Campos para entrada_cc
     centro_custo = Column(String(4), nullable=True)
@@ -88,6 +89,9 @@ class Solicitacao(Base):
             ' OR cargo_solicitado IS NULL',
             name='check_solicitacao_cargo',
         ),
+        # Polled a cada 5s pelo frontend; filtro mais comum é
+        # status='pendente' AND centro_custo IN (...).
+        Index('ix_sol_status_centro_custo', 'status', 'centro_custo'),
     )
 
 
