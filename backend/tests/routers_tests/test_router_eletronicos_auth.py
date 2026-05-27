@@ -1,7 +1,7 @@
 """
 Tests adicionais para cobrir branches de autorização per-CC em
-EletronicoService (create/update/delete) e o endpoint admin de criação
-de usuário.
+EletronicoService (create/update/delete), o endpoint admin de criação
+de usuário, e testes ISP/DIP documentando o design do UserContext.
 """
 
 from http import HTTPStatus
@@ -359,3 +359,93 @@ async def test_funcionario_ve_apenas_users_do_proprio_cc(
     emails = {u['email'] for u in resp.json()['users']}
     assert colega.email in emails
     assert forasteiro.email not in emails
+
+
+# ─── ISP: UserContext carregado completo — papéis privilegiados
+# funcionam mesmo sem centros_custo/ocupacoes populados ──────────────────
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_admin_sem_associacoes_cc_lista_todos_eletronicos(
+    async_client, async_db
+):
+    """
+    ISP: UserContext sempre hidrata centros_custo/ocupacoes/is_privileged/
+    is_tecnico_ti, mas EletronicoService só consulta is_privileged para
+    Admins. Admin sem nenhuma associação de CC enxerga todos os eletrônicos.
+    """
+    await _criar_contrato(async_db, 'ISPA')
+    e = await _criar_eletronico_db(async_db, 'ISPA')
+    admin, asenha = await _criar_usuario(
+        async_db, f'admisp{_n()}', 'Admin'
+    )
+    token = await _login(async_client, admin.email, asenha)
+
+    resp = await async_client.get(
+        URL, headers={'Authorization': f'Bearer {token}'}
+    )
+
+    ids = {i['id'] for i in resp.json()['eletronicos']}
+    assert e.id in ids
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_tecnico_ti_sem_associacoes_cc_lista_todos_eletronicos(
+    async_client, async_db
+):
+    """
+    ISP: EletronicoService consulta is_tecnico_ti e ignora
+    centros_custo/ocupacoes nesse caminho. Tecnico_TI sem associação de
+    CC vê todos os eletrônicos.
+    """
+    await _criar_contrato(async_db, 'ISPT')
+    e = await _criar_eletronico_db(async_db, 'ISPT')
+    ti, tsenha = await _criar_usuario(
+        async_db, f'tiisp{_n()}', 'Tecnico_TI'
+    )
+    token = await _login(async_client, ti.email, tsenha)
+
+    resp = await async_client.get(
+        URL, headers={'Authorization': f'Bearer {token}'}
+    )
+
+    ids = {i['id'] for i in resp.json()['eletronicos']}
+    assert e.id in ids
+
+
+# ─── DIP: sessão injetada via override — mudanças do service refletem
+# no async_db do teste sem commit adicional ────────────────────────────
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_dip_sessao_injetada_reflete_mudancas_do_service(
+    async_client, async_db
+):
+    """
+    DIP: a sessão é injetada via dependency_overrides, não criada
+    internamente pelo service. Por isso mudanças feitas pelo service
+    (status → Externo ao criar uma cessão) refletem imediatamente no
+    async_db do teste via refresh — sem commit explícito no teste.
+    """
+    await _criar_contrato(async_db, 'DIP1')
+    e = await _criar_eletronico_db(async_db, 'DIP1', status='Interno')
+    admin, asenha = await _criar_usuario(
+        async_db, f'dipadm{_n()}', 'Admin'
+    )
+    token = await _login(async_client, admin.email, asenha)
+
+    await async_client.post(
+        '/cessoes/',
+        json={
+            'eletronico_ids': [e.id],
+            'responsavel': 'DIP',
+            'centro_custo_destino': 'DIP1',
+        },
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    await async_db.refresh(e)
+    assert e.status == 'Externo'

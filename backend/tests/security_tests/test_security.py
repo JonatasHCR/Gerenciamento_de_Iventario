@@ -107,3 +107,38 @@ async def test_get_current_user_no_user_in_token(async_db):
 
     assert exc_info.value.status_code == HTTPStatus.UNAUTHORIZED
     assert exc_info.value.detail == 'Credenciais inválidas.'
+
+
+# ─── DIP: Security instancia Settings diretamente (sem injeção) ──────────
+
+
+@pytest.mark.security
+def test_security_acoplado_diretamente_a_settings():
+    """
+    DIP: Security() cria Settings internamente em vez de recebê-lo como
+    parâmetro. Não é possível injetar uma configuração alternativa (ex:
+    SECRET_KEY de testes) sem subclassificar Security. O atributo
+    `settings` é acessível, mas criado pelo próprio construtor.
+    """
+    s = Security()
+    assert hasattr(s, 'settings')
+    assert s.settings.SECRET_KEY  # lido diretamente, sem injeção
+    assert s.settings.ALGORITHM
+
+
+@pytest.mark.security
+def test_duas_instancias_security_compartilham_mesma_chave():
+    """
+    DIP (consequência): duas instâncias de Security independentes usam a
+    mesma chave porque ambas leem do mesmo Settings estático. Um token
+    gerado por uma é verificável pela outra — acoplamento implícito.
+    """
+    s1 = Security()
+    s2 = Security()
+    token = s1.get_access_token({'sub': 'dip@test.com'})
+    decoded = decode(
+        token,
+        s2.settings.SECRET_KEY,
+        algorithms=[s2.settings.ALGORITHM],
+    )
+    assert decoded['sub'] == 'dip@test.com'

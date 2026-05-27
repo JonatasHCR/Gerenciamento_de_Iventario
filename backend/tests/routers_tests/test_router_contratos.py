@@ -1,145 +1,271 @@
 from http import HTTPStatus
+from itertools import count
 
 import pytest
 
-URL_CONTRATO = '/contratos/'
+from backend.model.contratos import Contrato
+from backend.model.user import User
+from backend.security.security import Security
+
+URL = '/contratos/'
+
+_counter = count(1)
 
 
-def _assert_contrato_eq(json_resp: dict, expected: dict) -> None:
-    """Compara só os campos do payload, ignorando enriquecimentos
-    (gestor_nome, total_membros) adicionados pela response."""
+def _n():
+    return next(_counter)
+
+
+async def _criar_usuario(async_db, tipo='Gestor'):
+    n = _n()
+    security = Security()
+    senha = 'senha123'
+    u = User(
+        nome=f'ContUser{n}',
+        email=f'cont{n}@test.com',
+        senha=security.get_senha_hash(senha),
+        tipo=tipo,
+    )
+    async_db.add(u)
+    await async_db.flush()
+    await async_db.refresh(u)
+    return u, senha
+
+
+async def _login(async_client, email, senha):
+    resp = await async_client.post(
+        '/auth/login',
+        data={'username': email, 'password': senha},
+    )
+    return resp.json()['access_token']
+
+
+async def _criar_contrato_db(async_db, cc=None):
+    cc = cc or f'C{_n():03d}'
+    c = Contrato(centro_custo=cc, descricao=f'Contrato {cc}')
+    async_db.add(c)
+    await async_db.flush()
+    return c
+
+
+def _assert_campos(json_resp: dict, expected: dict) -> None:
     for key, value in expected.items():
         assert json_resp.get(key) == value, (
             f'{key}: esperado {value!r}, recebido {json_resp.get(key)!r}'
         )
 
 
+# ─── CRUD básico ─────────────────────────────────────────────────────────────
+
+
 @pytest.mark.asyncio
 @pytest.mark.routers
 async def test_create_contrato(async_client, contrato_teste, login_teste):
-
-    token = login_teste['token']
-    response = await async_client.post(
-        URL_CONTRATO,
+    resp = await async_client.post(
+        URL,
         json=contrato_teste,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {login_teste["token"]}'},
     )
 
-    assert response.status_code == HTTPStatus.CREATED
-    _assert_contrato_eq(response.json(), contrato_teste)
+    assert resp.status_code == HTTPStatus.CREATED
+    _assert_campos(resp.json(), contrato_teste)
 
 
 @pytest.mark.asyncio
 @pytest.mark.routers
 async def test_get_contratos(async_client, contrato_teste, login_teste):
-
-    token = login_teste['token']
     await async_client.post(
-        URL_CONTRATO,
+        URL,
         json=contrato_teste,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {login_teste["token"]}'},
     )
 
-    response = await async_client.get(
-        URL_CONTRATO,
-        headers={'Authorization': f'Bearer {token}'},
+    resp = await async_client.get(
+        URL,
+        headers={'Authorization': f'Bearer {login_teste["token"]}'},
     )
-    assert response.status_code == HTTPStatus.OK
-    assert isinstance(response.json()['contratos'], list)
-    _assert_contrato_eq(response.json()['contratos'][0], contrato_teste)
+
+    assert resp.status_code == HTTPStatus.OK
+    assert isinstance(resp.json()['contratos'], list)
+    _assert_campos(resp.json()['contratos'][0], contrato_teste)
 
 
 @pytest.mark.asyncio
 @pytest.mark.routers
 async def test_update_contrato(async_client, contrato_teste, login_teste):
-
-    token = login_teste['token']
-    response = await async_client.post(
-        URL_CONTRATO,
+    await async_client.post(
+        URL,
         json=contrato_teste,
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {login_teste["token"]}'},
     )
-    assert response.status_code == HTTPStatus.CREATED
 
-    updated_contrato = {
+    updated = {
         'centro_custo': contrato_teste['centro_custo'],
-        'descricao': 'Contrato',
+        'descricao': 'Descricao atualizada',
     }
-    response = await async_client.put(
-        f'{URL_CONTRATO}{contrato_teste["centro_custo"]}',
-        json=updated_contrato,
-        headers={'Authorization': f'Bearer {token}'},
+    resp = await async_client.put(
+        f'{URL}{contrato_teste["centro_custo"]}',
+        json=updated,
+        headers={'Authorization': f'Bearer {login_teste["token"]}'},
     )
-    assert response.status_code == HTTPStatus.OK
-    _assert_contrato_eq(response.json(), updated_contrato)
+
+    assert resp.status_code == HTTPStatus.OK
+    _assert_campos(resp.json(), updated)
 
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_update_contrato_not_found(
-    async_client, contrato_teste, login_teste
+async def test_update_contrato_nao_encontrado(
+    async_client, login_teste
 ):
-
-    token = login_teste['token']
-    response = await async_client.post(
-        URL_CONTRATO,
-        json=contrato_teste,
-        headers={'Authorization': f'Bearer {token}'},
+    resp = await async_client.put(
+        f'{URL}XXXX',
+        json={'centro_custo': 'XXXX', 'descricao': 'X'},
+        headers={'Authorization': f'Bearer {login_teste["token"]}'},
     )
-    assert response.status_code == HTTPStatus.CREATED
-    centro_custo = '9999'
 
-    updated_contrato = {
-        'centro_custo': centro_custo,
-        'descricao': 'Contrato',
-    }
-    response = await async_client.put(
-        f'{URL_CONTRATO}{centro_custo}',
-        json=updated_contrato,
-        headers={'Authorization': f'Bearer {token}'},
-    )
-    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
 @pytest.mark.asyncio
 @pytest.mark.routers
 async def test_delete_contrato(async_client, contrato_teste, login_teste):
-
-    token = login_teste['token']
-    response = await async_client.post(
-        URL_CONTRATO,
+    await async_client.post(
+        URL,
         json=contrato_teste,
-        headers={'Authorization': f'Bearer {token}'},
-    )
-    assert response.status_code == HTTPStatus.CREATED
-
-    response = await async_client.delete(
-        f'{URL_CONTRATO}{contrato_teste["centro_custo"]}',
-        headers={'Authorization': f'Bearer {token}'},
+        headers={'Authorization': f'Bearer {login_teste["token"]}'},
     )
 
-    assert response.status_code == HTTPStatus.OK
-    _assert_contrato_eq(response.json(), contrato_teste)
+    resp = await async_client.delete(
+        f'{URL}{contrato_teste["centro_custo"]}',
+        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    _assert_campos(resp.json(), contrato_teste)
 
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_delete_contrato_not_found(
+async def test_delete_contrato_nao_encontrado(
+    async_client, login_teste
+):
+    resp = await async_client.delete(
+        f'{URL}XXXX',
+        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    )
+
+    assert resp.status_code == HTTPStatus.NOT_FOUND
+
+
+# ─── SRP: create() acumula criação do contrato + associação Gestor ───────────
+# ContratoService.create() persiste dois objetos distintos num único método.
+# Pelo SRP, a criação da associação deveria ser delegada ao serviço de
+# associações. Os testes abaixo documentam esse acoplamento.
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_criar_contrato_gera_associacao_gestor_automaticamente(
     async_client, contrato_teste, login_teste
 ):
-
-    token = login_teste['token']
-    response = await async_client.post(
-        URL_CONTRATO,
+    """
+    ContratoService.create() cria o contrato e, como side-effect,
+    também cria a associação do criador como Gestor — responsabilidade
+    dupla num único método (SRP).
+    """
+    resp = await async_client.post(
+        URL,
         json=contrato_teste,
+        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    )
+    assert resp.status_code == HTTPStatus.CREATED
+    cc = contrato_teste['centro_custo']
+
+    assoc_resp = await async_client.get(
+        '/associacoes/contratos/',
+        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    )
+    gestores = [
+        a for a in assoc_resp.json()['associacoes']
+        if a['centro_custo'] == cc and a['ocupacao'] == 'Gestor'
+    ]
+    assert len(gestores) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_associacao_gerada_aponta_para_o_criador(
+    async_client, async_db
+):
+    """
+    A associação gerada como side-effect de create() deve pertencer
+    ao usuário que executou a criação, não a qualquer Admin genérico.
+    """
+    gestor, gsenha = await _criar_usuario(async_db, tipo='Gestor')
+    gtoken = await _login(async_client, gestor.email, gsenha)
+    cc = f'CT{_n()}'
+
+    resp = await async_client.post(
+        URL,
+        json={'centro_custo': cc, 'descricao': 'Criador correto'},
+        headers={'Authorization': f'Bearer {gtoken}'},
+    )
+    assert resp.status_code == HTTPStatus.CREATED
+
+    assoc_resp = await async_client.get(
+        '/associacoes/contratos/',
+        headers={'Authorization': f'Bearer {gtoken}'},
+    )
+    assoc_cc = [
+        a for a in assoc_resp.json()['associacoes']
+        if a['centro_custo'] == cc
+    ]
+    assert len(assoc_cc) == 1
+    assert assoc_cc[0]['user_id'] == gestor.id
+    assert assoc_cc[0]['ocupacao'] == 'Gestor'
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_criar_contrato_duplicado_retorna_conflict(
+    async_client, async_db
+):
+    gestor, gsenha = await _criar_usuario(async_db, tipo='Gestor')
+    gtoken = await _login(async_client, gestor.email, gsenha)
+    cc = f'DUP{_n()}'
+    payload = {'centro_custo': cc, 'descricao': 'X'}
+
+    headers = {'Authorization': f'Bearer {gtoken}'}
+    await async_client.post(URL, json=payload, headers=headers)
+    resp = await async_client.post(URL, json=payload, headers=headers)
+
+    assert resp.status_code == HTTPStatus.CONFLICT
+
+
+# ─── Autorização de escrita ──────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_funcionario_nao_pode_criar_contrato(async_client, async_db):
+    n = _n()
+    security = Security()
+    func = User(
+        nome=f'Func{n}',
+        email=f'func{n}@test.com',
+        senha=security.get_senha_hash('senha123'),
+        tipo='Funcionario',
+    )
+    async_db.add(func)
+    await async_db.flush()
+    await async_db.refresh(func)
+    token = await _login(async_client, func.email, 'senha123')
+
+    resp = await async_client.post(
+        URL,
+        json={'centro_custo': f'FC{_n()}', 'descricao': 'X'},
         headers={'Authorization': f'Bearer {token}'},
     )
-    assert response.status_code == HTTPStatus.CREATED
 
-    centro_custo = '9999'
-
-    response = await async_client.delete(
-        f'{URL_CONTRATO}{centro_custo}',
-        headers={'Authorization': f'Bearer {token}'},
-    )
-    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert resp.status_code == HTTPStatus.FORBIDDEN

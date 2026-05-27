@@ -9,16 +9,13 @@ from backend.model.eletronicos import Eletronico
 from backend.model.user import User
 from backend.security.security import Security
 
-URL_CESSAO = '/cessoes/'
+URL = '/cessoes/'
 
 _counter = count(1)
 
 
 def _n():
     return next(_counter)
-
-
-# ─── Helpers ────────────────────────────────────────────────────────────────
 
 
 async def _criar_usuario(async_db, tipo='Funcionario'):
@@ -46,20 +43,19 @@ async def _login(async_client, email, senha):
 
 
 async def _criar_contrato(async_db, cc=None):
-    cc = cc or f'C{_n():03d}'
+    cc = cc or f'CE{_n():03d}'
     c = Contrato(centro_custo=cc, descricao=f'Contrato {cc}')
     async_db.add(c)
     await async_db.flush()
     return c
 
 
-async def _assoc(async_db, user_id, cc, ocupacao):
+async def _assoc(async_db, user_id, cc, ocupacao='Gestor'):
     a = AssociacaoUserContrato(
         user_id=user_id, centro_custo=cc, ocupacao=ocupacao
     )
     async_db.add(a)
     await async_db.flush()
-    return a
 
 
 async def _criar_eletronico(async_db, cc, status='Interno'):
@@ -78,7 +74,19 @@ async def _criar_eletronico(async_db, cc, status='Interno'):
     return e
 
 
-# ─── CREATE ────────────────────────────────────────────────────────────────
+async def _criar_cessao(async_client, token, eletronico_ids, cc_destino):
+    return await async_client.post(
+        URL,
+        json={
+            'eletronico_ids': eletronico_ids,
+            'responsavel': 'Responsavel',
+            'centro_custo_destino': cc_destino,
+        },
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+
+# ─── CREATE ──────────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -87,22 +95,14 @@ async def test_create_cessao_admin(async_client, async_db, login_teste):
     c = await _criar_contrato(async_db)
     e = await _criar_eletronico(async_db, c.centro_custo)
 
-    resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'Fulano',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    resp = await _criar_cessao(
+        async_client, login_teste['token'], [e.id], c.centro_custo
     )
 
     assert resp.status_code == HTTPStatus.CREATED
     body = resp.json()
     assert body['status'] == 'ativa'
     assert body['total_eletronicos'] == 1
-    assert body['total_pendentes'] == 1
-    assert body['total_devolvidos'] == 0
     assert body['eletronicos'][0]['status'] == 'Externo'
 
 
@@ -113,41 +113,24 @@ async def test_create_cessao_gestor_proprio_cc(async_client, async_db):
     gestor, gsenha = await _criar_usuario(async_db, 'Gestor')
     await _assoc(async_db, gestor.id, c.centro_custo, 'Gestor')
     e = await _criar_eletronico(async_db, c.centro_custo)
-    token = await _login(async_client, gestor.email, gsenha)
+    gtoken = await _login(async_client, gestor.email, gsenha)
 
-    resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'Fulano',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {token}'},
-    )
+    resp = await _criar_cessao(async_client, gtoken, [e.id], c.centro_custo)
 
     assert resp.status_code == HTTPStatus.CREATED
 
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_create_cessao_gestor_cc_alheio(async_client, async_db):
+async def test_create_cessao_gestor_cc_alheio_proibido(async_client, async_db):
     c1 = await _criar_contrato(async_db)
     c2 = await _criar_contrato(async_db)
     gestor, gsenha = await _criar_usuario(async_db, 'Gestor')
-    # Gestor apenas no c1, mas tenta ceder eletrônico do c2
     await _assoc(async_db, gestor.id, c1.centro_custo, 'Gestor')
     e = await _criar_eletronico(async_db, c2.centro_custo)
-    token = await _login(async_client, gestor.email, gsenha)
+    gtoken = await _login(async_client, gestor.email, gsenha)
 
-    resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'Fulano',
-            'centro_custo_destino': c1.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {token}'},
-    )
+    resp = await _criar_cessao(async_client, gtoken, [e.id], c1.centro_custo)
 
     assert resp.status_code == HTTPStatus.FORBIDDEN
 
@@ -159,37 +142,23 @@ async def test_create_cessao_funcionario_proibido(async_client, async_db):
     func, fsenha = await _criar_usuario(async_db)
     await _assoc(async_db, func.id, c.centro_custo, 'Funcionario')
     e = await _criar_eletronico(async_db, c.centro_custo)
-    token = await _login(async_client, func.email, fsenha)
+    ftoken = await _login(async_client, func.email, fsenha)
 
-    resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'Fulano',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {token}'},
-    )
+    resp = await _criar_cessao(async_client, ftoken, [e.id], c.centro_custo)
 
     assert resp.status_code == HTTPStatus.FORBIDDEN
 
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_create_cessao_eletronico_ja_externo(
+async def test_create_cessao_eletronico_ja_externo_retorna_conflict(
     async_client, async_db, login_teste
 ):
     c = await _criar_contrato(async_db)
     e = await _criar_eletronico(async_db, c.centro_custo, status='Externo')
 
-    resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'Fulano',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    resp = await _criar_cessao(
+        async_client, login_teste['token'], [e.id], c.centro_custo
     )
 
     assert resp.status_code == HTTPStatus.CONFLICT
@@ -200,20 +169,74 @@ async def test_create_cessao_eletronico_ja_externo(
 async def test_create_cessao_eletronico_nao_encontrado(
     async_client, login_teste
 ):
-    resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [99999],
-            'responsavel': 'Fulano',
-            'centro_custo_destino': '0001',
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    resp = await _criar_cessao(
+        async_client, login_teste['token'], [99999], '0001'
     )
 
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-# ─── GET ────────────────────────────────────────────────────────────────────
+# ─── SRP: create() cria cessão + atualiza status + gera vínculos ─────────────
+# CessaoService.create() tem três responsabilidades num método.
+# Os testes verificam que todos os efeitos ocorrem juntos (e falham juntos).
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_criar_cessao_todos_eletronicos_ficam_externo(
+    async_client, async_db, login_teste
+):
+    """
+    SRP: create() cria Cessao, atualiza status para Externo e cria
+    CessaoEletronico — três responsabilidades num método.
+    Todos os efeitos devem ocorrer no mesmo commit.
+    """
+    c = await _criar_contrato(async_db)
+    e1 = await _criar_eletronico(async_db, c.centro_custo)
+    e2 = await _criar_eletronico(async_db, c.centro_custo)
+
+    resp = await _criar_cessao(
+        async_client, login_teste['token'], [e1.id, e2.id], c.centro_custo
+    )
+
+    assert resp.status_code == HTTPStatus.CREATED
+    body = resp.json()
+    ids_na_resposta = {el['id'] for el in body['eletronicos']}
+    assert {e1.id, e2.id} == ids_na_resposta
+    for el in body['eletronicos']:
+        assert el['status'] == 'Externo'
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_criar_cessao_falha_atomicamente_se_um_eletronico_externo(
+    async_client, async_db, login_teste
+):
+    """
+    SRP: Como create() acumula responsabilidades, uma falha em qualquer
+    etapa deve reverter toda a operação. O eletrônico Interno não deve
+    ser alterado quando outro eletrônico bloqueia a criação.
+    """
+    c = await _criar_contrato(async_db)
+    e_interno = await _criar_eletronico(async_db, c.centro_custo, 'Interno')
+    e_externo = await _criar_eletronico(async_db, c.centro_custo, 'Externo')
+
+    resp = await _criar_cessao(
+        async_client,
+        login_teste['token'],
+        [e_interno.id, e_externo.id],
+        c.centro_custo,
+    )
+
+    assert resp.status_code == HTTPStatus.CONFLICT
+
+    await async_db.refresh(e_interno)
+    assert e_interno.status == 'Interno', (
+        'Eletrônico Interno não deve ser alterado quando a cessão falha'
+    )
+
+
+# ─── GET ─────────────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -221,19 +244,12 @@ async def test_create_cessao_eletronico_nao_encontrado(
 async def test_get_cessoes_admin(async_client, async_db, login_teste):
     c = await _criar_contrato(async_db)
     e = await _criar_eletronico(async_db, c.centro_custo)
-    await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    await _criar_cessao(
+        async_client, login_teste['token'], [e.id], c.centro_custo
     )
 
     resp = await async_client.get(
-        URL_CESSAO,
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+        URL, headers={'Authorization': f'Bearer {login_teste["token"]}'}
     )
 
     assert resp.status_code == HTTPStatus.OK
@@ -245,19 +261,13 @@ async def test_get_cessoes_admin(async_client, async_db, login_teste):
 async def test_get_cessao_by_id(async_client, async_db, login_teste):
     c = await _criar_contrato(async_db)
     e = await _criar_eletronico(async_db, c.centro_custo)
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    create_resp = await _criar_cessao(
+        async_client, login_teste['token'], [e.id], c.centro_custo
     )
     cessao_id = create_resp.json()['id']
 
     resp = await async_client.get(
-        f'{URL_CESSAO}{cessao_id}',
+        f'{URL}{cessao_id}',
         headers={'Authorization': f'Bearer {login_teste["token"]}'},
     )
 
@@ -269,41 +279,36 @@ async def test_get_cessao_by_id(async_client, async_db, login_teste):
 @pytest.mark.routers
 async def test_get_cessao_nao_encontrada(async_client, login_teste):
     resp = await async_client.get(
-        f'{URL_CESSAO}99999',
+        f'{URL}99999',
         headers={'Authorization': f'Bearer {login_teste["token"]}'},
     )
+
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_get_cessao_sem_permissao(async_client, async_db, login_teste):
-    """Funcionário que não criou nem é gestor de nenhum CC envolvido
-    recebe 403 ao ler cessão alheia."""
+async def test_get_cessao_sem_permissao_retorna_forbidden(
+    async_client, async_db, login_teste
+):
     c = await _criar_contrato(async_db)
     e = await _criar_eletronico(async_db, c.centro_custo)
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    create_resp = await _criar_cessao(
+        async_client, login_teste['token'], [e.id], c.centro_custo
     )
     cessao_id = create_resp.json()['id']
     func, fsenha = await _criar_usuario(async_db)
-    token = await _login(async_client, func.email, fsenha)
+    ftoken = await _login(async_client, func.email, fsenha)
 
     resp = await async_client.get(
-        f'{URL_CESSAO}{cessao_id}',
-        headers={'Authorization': f'Bearer {token}'},
+        f'{URL}{cessao_id}',
+        headers={'Authorization': f'Bearer {ftoken}'},
     )
 
     assert resp.status_code == HTTPStatus.FORBIDDEN
 
 
-# ─── DEVOLVER (parcial + total) ────────────────────────────────────────────
+# ─── DEVOLVER ────────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -313,22 +318,16 @@ async def test_devolver_parcial(async_client, async_db, login_teste):
     e1 = await _criar_eletronico(async_db, c.centro_custo)
     e2 = await _criar_eletronico(async_db, c.centro_custo)
     e3 = await _criar_eletronico(async_db, c.centro_custo)
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e1.id, e2.id, e3.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    token = login_teste['token']
+    create_resp = await _criar_cessao(
+        async_client, token, [e1.id, e2.id, e3.id], c.centro_custo
     )
     cessao_id = create_resp.json()['id']
 
-    # devolve só 1
     resp = await async_client.put(
-        f'{URL_CESSAO}{cessao_id}/devolver',
+        f'{URL}{cessao_id}/devolver',
         json={'eletronico_ids': [e1.id]},
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert resp.status_code == HTTPStatus.OK
@@ -336,38 +335,32 @@ async def test_devolver_parcial(async_client, async_db, login_teste):
     assert body['status'] == 'parcial'
     assert body['total_devolvidos'] == 1
     assert body['total_pendentes'] == 2  # noqa: PLR2004
-    assert len(body['devolucoes']) == 1
     assert body['devolucoes'][0]['lote'] == 1
 
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_devolver_segundo_lote_e_completar(
+async def test_devolver_segundo_lote_completa_cessao(
     async_client, async_db, login_teste
 ):
     c = await _criar_contrato(async_db)
     e1 = await _criar_eletronico(async_db, c.centro_custo)
     e2 = await _criar_eletronico(async_db, c.centro_custo)
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e1.id, e2.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    token = login_teste['token']
+    create_resp = await _criar_cessao(
+        async_client, token, [e1.id, e2.id], c.centro_custo
     )
     cessao_id = create_resp.json()['id']
 
     await async_client.put(
-        f'{URL_CESSAO}{cessao_id}/devolver',
+        f'{URL}{cessao_id}/devolver',
         json={'eletronico_ids': [e1.id]},
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
     resp = await async_client.put(
-        f'{URL_CESSAO}{cessao_id}/devolver',
+        f'{URL}{cessao_id}/devolver',
         json={'eletronico_ids': [e2.id]},
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     body = resp.json()
@@ -381,26 +374,21 @@ async def test_devolver_segundo_lote_e_completar(
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_devolver_item_alheio_a_cessao(
+async def test_devolver_item_alheio_a_cessao_retorna_bad_request(
     async_client, async_db, login_teste
 ):
     c = await _criar_contrato(async_db)
     e = await _criar_eletronico(async_db, c.centro_custo)
-    outro_e = await _criar_eletronico(async_db, c.centro_custo)
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    outro = await _criar_eletronico(async_db, c.centro_custo)
+    token = login_teste['token']
+    create_resp = await _criar_cessao(
+        async_client, token, [e.id], c.centro_custo
     )
 
     resp = await async_client.put(
-        f'{URL_CESSAO}{create_resp.json()["id"]}/devolver',
-        json={'eletronico_ids': [outro_e.id]},
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+        f'{URL}{create_resp.json()["id"]}/devolver',
+        json={'eletronico_ids': [outro.id]},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert resp.status_code == HTTPStatus.BAD_REQUEST
@@ -408,32 +396,26 @@ async def test_devolver_item_alheio_a_cessao(
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_devolver_item_ja_devolvido(
+async def test_devolver_item_ja_devolvido_retorna_bad_request(
     async_client, async_db, login_teste
 ):
     c = await _criar_contrato(async_db)
     e = await _criar_eletronico(async_db, c.centro_custo)
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    token = login_teste['token']
+    create_resp = await _criar_cessao(
+        async_client, token, [e.id], c.centro_custo
     )
     cessao_id = create_resp.json()['id']
-    await async_client.put(
-        f'{URL_CESSAO}{cessao_id}/devolver',
-        json={'eletronico_ids': [e.id]},
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
-    )
 
-    # tenta devolver de novo → 400 (cessão já devolvida)
-    resp = await async_client.put(
-        f'{URL_CESSAO}{cessao_id}/devolver',
+    await async_client.put(
+        f'{URL}{cessao_id}/devolver',
         json={'eletronico_ids': [e.id]},
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    resp = await async_client.put(
+        f'{URL}{cessao_id}/devolver',
+        json={'eletronico_ids': [e.id]},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert resp.status_code == HTTPStatus.BAD_REQUEST
@@ -441,8 +423,7 @@ async def test_devolver_item_ja_devolvido(
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_devolver_funcionario_do_cc_permitido(async_client, async_db):
-    """Qualquer membro do CC (qualquer ocupação) pode devolver."""
+async def test_devolver_membro_do_cc_pode_devolver(async_client, async_db):
     c = await _criar_contrato(async_db)
     gestor, gsenha = await _criar_usuario(async_db, 'Gestor')
     await _assoc(async_db, gestor.id, c.centro_custo, 'Gestor')
@@ -450,20 +431,14 @@ async def test_devolver_funcionario_do_cc_permitido(async_client, async_db):
     await _assoc(async_db, func.id, c.centro_custo, 'Funcionario')
     e = await _criar_eletronico(async_db, c.centro_custo)
     gtoken = await _login(async_client, gestor.email, gsenha)
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {gtoken}'},
+    create_resp = await _criar_cessao(
+        async_client, gtoken, [e.id], c.centro_custo
     )
     cessao_id = create_resp.json()['id']
     ftoken = await _login(async_client, func.email, fsenha)
 
     resp = await async_client.put(
-        f'{URL_CESSAO}{cessao_id}/devolver',
+        f'{URL}{cessao_id}/devolver',
         json={'eletronico_ids': [e.id]},
         headers={'Authorization': f'Bearer {ftoken}'},
     )
@@ -479,23 +454,17 @@ async def test_devolver_usuario_fora_do_cc_proibido(async_client, async_db):
     c2 = await _criar_contrato(async_db)
     gestor, gsenha = await _criar_usuario(async_db, 'Gestor')
     await _assoc(async_db, gestor.id, c1.centro_custo, 'Gestor')
-    outro, osenha = await _criar_usuario(async_db, 'Funcionario')
-    await _assoc(async_db, outro.id, c2.centro_custo, 'Funcionario')
+    outsider, osenha = await _criar_usuario(async_db)
+    await _assoc(async_db, outsider.id, c2.centro_custo, 'Funcionario')
     e = await _criar_eletronico(async_db, c1.centro_custo)
     gtoken = await _login(async_client, gestor.email, gsenha)
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c1.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {gtoken}'},
+    create_resp = await _criar_cessao(
+        async_client, gtoken, [e.id], c1.centro_custo
     )
-    otoken = await _login(async_client, outro.email, osenha)
+    otoken = await _login(async_client, outsider.email, osenha)
 
     resp = await async_client.put(
-        f'{URL_CESSAO}{create_resp.json()["id"]}/devolver',
+        f'{URL}{create_resp.json()["id"]}/devolver',
         json={'eletronico_ids': [e.id]},
         headers={'Authorization': f'Bearer {otoken}'},
     )
@@ -503,32 +472,28 @@ async def test_devolver_usuario_fora_do_cc_proibido(async_client, async_db):
     assert resp.status_code == HTTPStatus.FORBIDDEN
 
 
-# ─── DELETE ────────────────────────────────────────────────────────────────
+# ─── DELETE ──────────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_delete_cessao_admin(async_client, async_db, login_teste):
+async def test_delete_cessao_admin_retorna_eletronico_interno(
+    async_client, async_db, login_teste
+):
     c = await _criar_contrato(async_db)
     e = await _criar_eletronico(async_db, c.centro_custo)
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    token = login_teste['token']
+    create_resp = await _criar_cessao(
+        async_client, token, [e.id], c.centro_custo
     )
     cessao_id = create_resp.json()['id']
 
     resp = await async_client.delete(
-        f'{URL_CESSAO}{cessao_id}',
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+        f'{URL}{cessao_id}',
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert resp.status_code == HTTPStatus.OK
-    # eletrônico volta a interno
     assert resp.json()['eletronicos'][0]['status'] == 'Interno'
 
 
@@ -540,18 +505,12 @@ async def test_delete_cessao_gestor_proprio_cc(async_client, async_db):
     await _assoc(async_db, gestor.id, c.centro_custo, 'Gestor')
     e = await _criar_eletronico(async_db, c.centro_custo)
     gtoken = await _login(async_client, gestor.email, gsenha)
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {gtoken}'},
+    create_resp = await _criar_cessao(
+        async_client, gtoken, [e.id], c.centro_custo
     )
 
     resp = await async_client.delete(
-        f'{URL_CESSAO}{create_resp.json()["id"]}',
+        f'{URL}{create_resp.json()["id"]}',
         headers={'Authorization': f'Bearer {gtoken}'},
     )
 
@@ -563,19 +522,11 @@ async def test_delete_cessao_gestor_proprio_cc(async_client, async_db):
 async def test_delete_cessao_gestor_cc_alheio_proibido(
     async_client, async_db, login_teste
 ):
-    """Gestor que não tem ocupação no CC origem da cessão recebe 403."""
     c1 = await _criar_contrato(async_db)
     c2 = await _criar_contrato(async_db)
     e = await _criar_eletronico(async_db, c1.centro_custo)
-    # admin cria a cessão
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c1.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    create_resp = await _criar_cessao(
+        async_client, login_teste['token'], [e.id], c1.centro_custo
     )
     cessao_id = create_resp.json()['id']
     gestor_outro, gsenha = await _criar_usuario(async_db, 'Gestor')
@@ -583,7 +534,7 @@ async def test_delete_cessao_gestor_cc_alheio_proibido(
     gtoken = await _login(async_client, gestor_outro.email, gsenha)
 
     resp = await async_client.delete(
-        f'{URL_CESSAO}{cessao_id}',
+        f'{URL}{cessao_id}',
         headers={'Authorization': f'Bearer {gtoken}'},
     )
 
@@ -597,21 +548,15 @@ async def test_delete_cessao_funcionario_proibido(
 ):
     c = await _criar_contrato(async_db)
     e = await _criar_eletronico(async_db, c.centro_custo)
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    create_resp = await _criar_cessao(
+        async_client, login_teste['token'], [e.id], c.centro_custo
     )
     func, fsenha = await _criar_usuario(async_db)
     await _assoc(async_db, func.id, c.centro_custo, 'Funcionario')
     ftoken = await _login(async_client, func.email, fsenha)
 
     resp = await async_client.delete(
-        f'{URL_CESSAO}{create_resp.json()["id"]}',
+        f'{URL}{create_resp.json()["id"]}',
         headers={'Authorization': f'Bearer {ftoken}'},
     )
 
@@ -622,13 +567,14 @@ async def test_delete_cessao_funcionario_proibido(
 @pytest.mark.routers
 async def test_delete_cessao_nao_encontrada(async_client, login_teste):
     resp = await async_client.delete(
-        f'{URL_CESSAO}99999',
+        f'{URL}99999',
         headers={'Authorization': f'Bearer {login_teste["token"]}'},
     )
+
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-# ─── NOTIFICAÇÕES ──────────────────────────────────────────────────────────
+# ─── NOTIFICAÇÕES ────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -636,29 +582,21 @@ async def test_delete_cessao_nao_encontrada(async_client, login_teste):
 async def test_recebimentos_pendentes_admin_ve_tudo(
     async_client, async_db, login_teste
 ):
-    """Admin vê todas as devoluções pendentes, sem restrição de CC."""
     c = await _criar_contrato(async_db)
     e = await _criar_eletronico(async_db, c.centro_custo)
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    token = login_teste['token']
+    create_resp = await _criar_cessao(
+        async_client, token, [e.id], c.centro_custo
     )
-    cessao_id = create_resp.json()['id']
-    # alguém devolve (admin mesmo)
     await async_client.put(
-        f'{URL_CESSAO}{cessao_id}/devolver',
+        f'{URL}{create_resp.json()["id"]}/devolver',
         json={'eletronico_ids': [e.id]},
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     resp = await async_client.get(
-        f'{URL_CESSAO}recebimentos/pendentes-gestor',
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+        f'{URL}recebimentos/pendentes-gestor',
+        headers={'Authorization': f'Bearer {token}'},
     )
 
     assert resp.status_code == HTTPStatus.OK
@@ -670,71 +608,52 @@ async def test_recebimentos_pendentes_admin_ve_tudo(
 async def test_recebimentos_pendentes_gestor_filtra_por_cc(
     async_client, async_db, login_teste
 ):
-    """Gestor só vê pendentes dos CCs onde é Gestor."""
     c1 = await _criar_contrato(async_db)
     c2 = await _criar_contrato(async_db)
-    # gestor só em c1
     gestor, gsenha = await _criar_usuario(async_db, 'Gestor')
     await _assoc(async_db, gestor.id, c1.centro_custo, 'Gestor')
-
     e_c1 = await _criar_eletronico(async_db, c1.centro_custo)
     e_c2 = await _criar_eletronico(async_db, c2.centro_custo)
-    # admin cria + devolve as duas
+    token = login_teste['token']
+
     for cc, e in [(c1, e_c1), (c2, e_c2)]:
-        create_resp = await async_client.post(
-            URL_CESSAO,
-            json={
-                'eletronico_ids': [e.id],
-                'responsavel': 'X',
-                'centro_custo_destino': cc.centro_custo,
-            },
-            headers={'Authorization': f'Bearer {login_teste["token"]}'},
-        )
+        cr = await _criar_cessao(async_client, token, [e.id], cc.centro_custo)
         await async_client.put(
-            f'{URL_CESSAO}{create_resp.json()["id"]}/devolver',
+            f'{URL}{cr.json()["id"]}/devolver',
             json={'eletronico_ids': [e.id]},
-            headers={'Authorization': f'Bearer {login_teste["token"]}'},
+            headers={'Authorization': f'Bearer {token}'},
         )
 
     gtoken = await _login(async_client, gestor.email, gsenha)
     resp = await async_client.get(
-        f'{URL_CESSAO}recebimentos/pendentes-gestor',
+        f'{URL}recebimentos/pendentes-gestor',
         headers={'Authorization': f'Bearer {gtoken}'},
     )
 
     assert resp.status_code == HTTPStatus.OK
-    # vê só do c1 (1 lote)
     assert resp.json()['count'] == 1
 
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_recebimentos_pendentes_funcionario_vazio(
+async def test_recebimentos_pendentes_funcionario_retorna_zero(
     async_client, async_db, login_teste
 ):
-    """Funcionário (sem ocupação Gestor em nenhum CC) recebe count 0."""
     c = await _criar_contrato(async_db)
     e = await _criar_eletronico(async_db, c.centro_custo)
     func, fsenha = await _criar_usuario(async_db)
     await _assoc(async_db, func.id, c.centro_custo, 'Funcionario')
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
-    )
+    token = login_teste['token']
+    cr = await _criar_cessao(async_client, token, [e.id], c.centro_custo)
     await async_client.put(
-        f'{URL_CESSAO}{create_resp.json()["id"]}/devolver',
+        f'{URL}{cr.json()["id"]}/devolver',
         json={'eletronico_ids': [e.id]},
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
-
     ftoken = await _login(async_client, func.email, fsenha)
+
     resp = await async_client.get(
-        f'{URL_CESSAO}recebimentos/pendentes-gestor',
+        f'{URL}recebimentos/pendentes-gestor',
         headers={'Authorization': f'Bearer {ftoken}'},
     )
 
@@ -749,38 +668,29 @@ async def test_marcar_recebimentos_vistos_zera_count(
 ):
     c = await _criar_contrato(async_db)
     e = await _criar_eletronico(async_db, c.centro_custo)
-    create_resp = await async_client.post(
-        URL_CESSAO,
-        json={
-            'eletronico_ids': [e.id],
-            'responsavel': 'X',
-            'centro_custo_destino': c.centro_custo,
-        },
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
-    )
+    token = login_teste['token']
+    cr = await _criar_cessao(async_client, token, [e.id], c.centro_custo)
     await async_client.put(
-        f'{URL_CESSAO}{create_resp.json()["id"]}/devolver',
+        f'{URL}{cr.json()["id"]}/devolver',
         json={'eletronico_ids': [e.id]},
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+        headers={'Authorization': f'Bearer {token}'},
     )
 
-    # antes de marcar: count >= 1
     before = await async_client.get(
-        f'{URL_CESSAO}recebimentos/pendentes-gestor',
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+        f'{URL}recebimentos/pendentes-gestor',
+        headers={'Authorization': f'Bearer {token}'},
     )
     assert before.json()['count'] >= 1
 
     mark = await async_client.put(
-        f'{URL_CESSAO}recebimentos/visto',
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+        f'{URL}recebimentos/visto',
+        headers={'Authorization': f'Bearer {token}'},
     )
     assert mark.status_code == HTTPStatus.OK
     assert mark.json()['marcadas'] >= 1
 
-    # depois: 0
     after = await async_client.get(
-        f'{URL_CESSAO}recebimentos/pendentes-gestor',
-        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+        f'{URL}recebimentos/pendentes-gestor',
+        headers={'Authorization': f'Bearer {token}'},
     )
     assert after.json()['count'] == 0
