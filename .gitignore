@@ -39,3 +39,7 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
+
+### Backups ###
+backups/*
+!backups/.gitkeep

@@ -53,5 +53,75 @@ services:
       - backend
     restart: unless-stopped
 
+  # --- Backup -----------------------------------------------------------
+  # Uso: docker compose --profile backup up -d
+  # Roda backup automático a cada BACKUP_INTERVAL_HOURS horas (padrão: 24).
+  # Backups ficam em ./backups/  e são rotacionados após BACKUP_KEEP_DAYS dias.
+  #
+  # Backup manual:
+  #   docker compose --profile backup run --rm db-backup /scripts/backup.sh
+  #
+  # Restore:
+  #   docker compose --profile backup run --rm db-backup \
+  #     sh -c 'gunzip -c /backups/<arquivo>.sql.gz | psql -h postgres -U $DB_USER $DB_NAME'
+  db-backup:
+    profiles: ["backup"]
+    image: postgres:16-alpine
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      BACKUP_DIR: /backups
+      KEEP_DAYS: "${BACKUP_KEEP_DAYS:-7}"
+      BACKUP_INTERVAL_HOURS: "${BACKUP_INTERVAL_HOURS:-24}"
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/scripts/backup.sh:ro
+    command: >
+      /bin/sh -c '
+        chmod +x /scripts/backup.sh
+        INTERVAL=$$(( $${BACKUP_INTERVAL_HOURS:-24} * 3600 ))
+        echo "[$(date)] Backup agendado a cada $${BACKUP_INTERVAL_HOURS:-24}h"
+        while true; do
+          /scripts/backup.sh
+          echo "[$(date)] Próximo backup em $${BACKUP_INTERVAL_HOURS:-24}h"
+          sleep "$$INTERVAL"
+        done'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # --- Gitea Runner (CI/CD) ---------------------------------------------
+  # Usa um Gitea já existente — não sobe um novo.
+  #
+  # SETUP (uma vez):
+  #   1. No seu Gitea: Painel de Admin → Actions → Runners → Criar runner
+  #      Copie o token de registro.
+  #   2. No .env, defina:
+  #        GITEA_INSTANCE_URL=http://<host-do-gitea>:<porta>
+  #        GITEA_RUNNER_TOKEN=<token-copiado>
+  #   3. Suba o runner:
+  #        docker compose --profile gitea up -d
+  #
+  # O runner se registra automaticamente no Gitea na primeira inicialização.
+  gitea-runner:
+    profiles: ["gitea"]
+    image: gitea/act_runner:latest
+    container_name: gitea-runner
+    environment:
+      GITEA_INSTANCE_URL: ${GITEA_INSTANCE_URL:?Defina GITEA_INSTANCE_URL no .env (ex: http://192.168.1.10:3000)}
+      GITEA_RUNNER_REGISTRATION_TOKEN: ${GITEA_RUNNER_TOKEN:?Defina GITEA_RUNNER_TOKEN no .env}
+      GITEA_RUNNER_NAME: "${GITEA_RUNNER_NAME:-local-runner}"
+      CONFIG_FILE: /data/runner-config.yaml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - runner_data:/data
+      - ./.gitea/runner-config.yaml:/data/runner-config.yaml:ro
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  runner_data:

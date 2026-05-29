@@ -1,0 +1,103 @@
+name: CI/CD
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # -----------------------------------------------------------------------
+  # Backend: lint + testes
+  # -----------------------------------------------------------------------
+  test-backend:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.13-slim
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar dependências do sistema
+        run: |
+          apt-get update -q
+          apt-get install -y --no-install-recommends libpq-dev gcc
+
+      - name: Cache Poetry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: poetry-${{ hashFiles('backend/poetry.lock') }}
+
+      - name: Instalar Poetry
+        run: pip install --no-cache-dir poetry
+
+      - name: Instalar dependências
+        working-directory: backend
+        run: poetry install --with dev --no-interaction --no-ansi
+
+      - name: Lint (ruff)
+        working-directory: backend
+        run: poetry run ruff check .
+
+      - name: Testes
+        working-directory: backend
+        run: poetry run pytest -x --cov=backend -q
+
+  # -----------------------------------------------------------------------
+  # Frontend: typecheck + lint
+  # -----------------------------------------------------------------------
+  test-frontend:
+    runs-on: ubuntu-latest
+    container:
+      image: node:22-alpine
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: frontend/frontend/node_modules
+          key: npm-${{ hashFiles('frontend/frontend/package-lock.json') }}
+
+      - name: Instalar dependências
+        working-directory: frontend/frontend
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: frontend/frontend
+        run: npm run typecheck
+
+      - name: Lint
+        working-directory: frontend/frontend
+        run: npm run lint
+
+  # -----------------------------------------------------------------------
+  # Deploy — só executa na branch main após CI passar
+  #
+  # Pré-requisitos (configurar em Gitea → Repositório → Settings → Secrets):
+  #   DEPLOY_HOST     — IP ou hostname do servidor (ex: 192.168.1.10)
+  #   DEPLOY_USER     — usuário SSH (ex: ubuntu)
+  #   DEPLOY_SSH_KEY  — chave privada SSH (conteúdo do arquivo ~/.ssh/id_rsa)
+  #   DEPLOY_PATH     — caminho do projeto no servidor (ex: /opt/inventario)
+  # -----------------------------------------------------------------------
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+            echo "Atualizando código..."
+            git pull origin main
+            echo "Subindo containers..."
+            docker compose up --build -d
+            echo "Deploy concluído: $(date)"

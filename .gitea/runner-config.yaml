@@ -1,0 +1,31 @@
+log:
+  level: info
+
+runner:
+  file: .runner
+  capacity: 2
+  timeout: 3h
+  shutdown_timeout: 3s
+  insecure: false
+  # ubuntu-latest → roda jobs em container Docker
+  # self-hosted   → roda direto no container do runner (para deploy com docker)
+  labels:
+    - "ubuntu-latest:docker://ubuntu:22.04"
+    - "self-hosted:host://"
+
+cache:
+  enabled: true
+  dir: /data/.cache
+
+container:
+  network: bridge
+  privileged: false
+  # Passa o socket do Docker para os containers dos jobs (necessário para o job de deploy)
+  options: "-v /var/run/docker.sock:/var/run/docker.sock"
+  valid_volumes:
+    - "/var/run/docker.sock"
+    - "/tmp/**"
+  force_pull: false
+
+host:
+  workdir_parent: /data/workdir
