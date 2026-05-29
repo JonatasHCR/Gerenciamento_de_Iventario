@@ -110,7 +110,7 @@ services:
   gitea-runner:
     profiles: ["gitea"]
     image: gitea/act_runner:latest
-    container_name: gitea-runner
+    container_name: gitea-runner-inv
     environment:
       GITEA_INSTANCE_URL: ${GITEA_INSTANCE_URL:?Defina GITEA_INSTANCE_URL no .env}
       GITEA_RUNNER_REGISTRATION_TOKEN: ${GITEA_RUNNER_TOKEN:?Defina GITEA_RUNNER_TOKEN no .env}
