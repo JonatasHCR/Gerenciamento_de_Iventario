@@ -84,7 +84,7 @@ services:
         INTERVAL=$$(( $${BACKUP_INTERVAL_HOURS:-24} * 3600 ))
         echo "[$(date)] Backup agendado a cada $${BACKUP_INTERVAL_HOURS:-24}h"
         while true; do
-          sh /scripts/backup.sh
+          tr -d '\r' < /scripts/backup.sh | sh
           echo "[$(date)] Próximo backup em $${BACKUP_INTERVAL_HOURS:-24}h"
           sleep "$$INTERVAL"
         done'
