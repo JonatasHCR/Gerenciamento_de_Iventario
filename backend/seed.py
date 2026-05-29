@@ -4,6 +4,7 @@ Idempotente: usa ON CONFLICT DO NOTHING, pode rodar mais de uma vez.
 
 Uso:
     docker compose exec backend python seed.py
+    teste
 """
 import asyncio
 
