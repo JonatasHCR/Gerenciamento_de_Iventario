@@ -23,6 +23,6 @@ SIZE=$(du -sh "$BACKUP_FILE" | cut -f1)
 log "Backup salvo: ${BACKUP_FILE} (${SIZE})"
 
 REMOVED=$(find "${BACKUP_DIR}" -name "backup_*.sql.gz" -mtime +"${KEEP_DAYS}" -print -delete 2>/dev/null | wc -l | tr -d ' ')
-[ "$REMOVED" -gt 0 ] && log "Rotação: ${REMOVED} arquivo(s) removido(s) (> ${KEEP_DAYS} dias)"
+[ "$REMOVED" -gt 0 ] && log "Rotacao: ${REMOVED} arquivo(s) removido(s) (> ${KEEP_DAYS} dias)"
 
-log "Concluído."
+log "Concluido."
