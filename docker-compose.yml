@@ -79,15 +79,18 @@ services:
     volumes:
       - ./backups:/backups
       - ./scripts/backup.sh:/scripts/backup.sh:ro
-    command: >
-      /bin/sh -c '
+    command:
+      - /bin/sh
+      - -c
+      - |
+        tr -d '\r' < /scripts/backup.sh > /tmp/backup.sh
         INTERVAL=$$(( $${BACKUP_INTERVAL_HOURS:-24} * 3600 ))
-        echo "[$(date)] Backup agendado a cada $${BACKUP_INTERVAL_HOURS:-24}h"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup agendado a cada $${BACKUP_INTERVAL_HOURS:-24}h"
         while true; do
-          sh /scripts/backup.sh
-          echo "[$(date)] Próximo backup em $${BACKUP_INTERVAL_HOURS:-24}h"
+          sh /tmp/backup.sh
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] Proximo backup em $${BACKUP_INTERVAL_HOURS:-24}h"
           sleep "$$INTERVAL"
-        done'
+        done
     depends_on:
       postgres:
         condition: service_healthy
