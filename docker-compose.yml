@@ -81,11 +81,10 @@ services:
       - ./scripts/backup.sh:/scripts/backup.sh:ro
     command: >
       /bin/sh -c '
-        chmod +x /scripts/backup.sh
         INTERVAL=$$(( $${BACKUP_INTERVAL_HOURS:-24} * 3600 ))
         echo "[$(date)] Backup agendado a cada $${BACKUP_INTERVAL_HOURS:-24}h"
         while true; do
-          /scripts/backup.sh
+          sh /scripts/backup.sh
           echo "[$(date)] Próximo backup em $${BACKUP_INTERVAL_HOURS:-24}h"
           sleep "$$INTERVAL"
         done'
