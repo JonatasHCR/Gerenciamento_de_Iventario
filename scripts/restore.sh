@@ -17,10 +17,11 @@ fi
 
 log "Iniciando restore: ${BACKUP_FILE} -> ${DB_NAME}@${DB_HOST:-postgres}"
 
-gunzip -c "$BACKUP_FILE" | PGPASSWORD="${DB_PASSWORD}" psql \
+PGPASSWORD="${DB_PASSWORD}" psql \
   -h "${DB_HOST:-postgres}" \
   -p "${DB_PORT:-5432}" \
   -U "${DB_USER}" \
-  "${DB_NAME}"
+  "${DB_NAME}" \
+  < "$BACKUP_FILE"
 
 log "Restore concluido."
