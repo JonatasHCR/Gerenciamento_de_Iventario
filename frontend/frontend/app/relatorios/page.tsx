@@ -14,6 +14,7 @@ import {
   getAssociacoesContrato,
   getAssociacoesEletronico,
 } from '@/lib/api/associacoes'
+import { getCessoes, type Cessao } from '@/lib/api/cessoes'
 import { getTipos, type TipoEletronico } from '@/lib/api/tipos'
 import type {
   Eletronico,
@@ -94,6 +95,7 @@ export default function RelatoriosPage() {
   const [users, setUsers] = useState<User[]>([])
   const [assocs, setAssocs] = useState<AssociacaoUserContrato[]>([])
   const [assocsEl, setAssocsEl] = useState<AssociacaoUserEletronico[]>([])
+  const [cessoes, setCessoes] = useState<Cessao[]>([])
   const [authChecked, setAuthChecked] = useState(false)
   const [authorized, setAuthorized] = useState(false)
   const [tiposCatalogo, setTiposCatalogo] = useState<TipoEletronico[]>([])
@@ -161,6 +163,7 @@ export default function RelatoriosPage() {
       getUsers().then(setUsers).catch(() => {})
       getAssociacoesContrato().then(setAssocs).catch(() => {})
       getAssociacoesEletronico().then(setAssocsEl).catch(() => {})
+      getCessoes().then(setCessoes).catch(() => {})
       getTipos(true)
         .then((tipos) => {
           setTiposCatalogo(tipos)
@@ -190,6 +193,7 @@ export default function RelatoriosPage() {
         getContratos().then(setContratos).catch(() => {})
         getUsers().then(setUsers).catch(() => {})
         getAssociacoesEletronico().then(setAssocsEl).catch(() => {})
+        getCessoes().then(setCessoes).catch(() => {})
         getTipos(true)
           .then((tipos) => {
             setTiposCatalogo(tipos)
@@ -232,6 +236,18 @@ export default function RelatoriosPage() {
     }
     return map
   }, [assocsEl, users])
+
+  const responsavelCessaoPorEqId = useMemo(() => {
+    const map = new Map<number, string>()
+    for (const c of cessoes) {
+      for (const e of c.eletronicos) {
+        if (e.devolvido_em === null) {
+          map.set(e.id, c.responsavel)
+        }
+      }
+    }
+    return map
+  }, [cessoes])
 
   const filtrados = useMemo(
     () =>
@@ -278,6 +294,10 @@ export default function RelatoriosPage() {
 
   function getCellValue(e: Eletronico, key: ColKey): string {
     if (key === 'responsavel') {
+      if (e.status === 'Externo') {
+        const r = responsavelCessaoPorEqId.get(e.id)
+        if (r) return r
+      }
       return responsavelPorEqId.get(e.id) ?? '—'
     }
     const v = e[key]

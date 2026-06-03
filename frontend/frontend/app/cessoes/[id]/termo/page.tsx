@@ -96,7 +96,7 @@ export default function TermoPage() {
 
         <div>
           <div className="mx-auto w-72 border-t border-black" />
-          <p className="mt-1 text-sm font-semibold">UFC ENGENHARIA LTDA.</p>
+          <p className="mt-1 text-sm font-semibold">UFC ENGENHARIA SA</p>
         </div>
       </div>
 
