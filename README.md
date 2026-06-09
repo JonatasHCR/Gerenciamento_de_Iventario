@@ -311,8 +311,6 @@ Detalhes em [backend/README.md](backend/README.md) e
 
 - [backend/README.md](backend/README.md) — endpoints, modelo de autorização per-CC, migrations, testes
 - [frontend/frontend/README.md](frontend/frontend/README.md) — estrutura de páginas, API client, proxy, theming
-- [CLAUDE.md](CLAUDE.md) — guia interno para futuras manutenções com Claude Code
-
 ---
 
 ## 📜 Regras de negócio detalhadas
