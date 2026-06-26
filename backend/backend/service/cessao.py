@@ -6,7 +6,11 @@ from fastapi import HTTPException
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.model.cessao import Cessao, CessaoEletronico
+from backend.model.cessao import (
+    Cessao,
+    CessaoEletronico,
+    CessaoPeriferico,
+)
 from backend.model.eletronicos import Eletronico
 from backend.schemas.cessao import CessaoCreate, CessaoDevolverRequest
 from backend.security.dependencies import UserContext
@@ -26,6 +30,16 @@ class CessaoService:
             .where(CessaoEletronico.cessao_id == cessao_id)
         )
         return [(ce, el) for ce, el in result.all()]
+
+    async def _perifericos_da_cessao(
+        self, cessao_id: int
+    ) -> list[CessaoPeriferico]:
+        result = await self.session.execute(
+            select(CessaoPeriferico)
+            .where(CessaoPeriferico.cessao_id == cessao_id)
+            .order_by(CessaoPeriferico.id)
+        )
+        return list(result.scalars().all())
 
     @staticmethod
     def _eletronico_to_dict(
@@ -53,6 +67,7 @@ class CessaoService:
         self,
         c: Cessao,
         itens: list[tuple[CessaoEletronico, Eletronico]],
+        perifericos: list[CessaoPeriferico] | None = None,
     ) -> dict:
         total = len(itens)
         devolvidos = [(ce, el) for ce, el in itens if ce.devolvido_em]
@@ -96,6 +111,10 @@ class CessaoService:
                 self._eletronico_to_dict(el, ce) for ce, el in itens
             ],
             'devolucoes': devolucoes,
+            'perifericos': [
+                {'nome': p.nome, 'quantidade': p.quantidade}
+                for p in (perifericos or [])
+            ],
         }
 
     def _assert_permission(self, ctx: UserContext) -> set[str]:  # noqa: PLR6301
@@ -170,6 +189,15 @@ class CessaoService:
                 )
             )
 
+        for p in data.perifericos:
+            self.session.add(
+                CessaoPeriferico(
+                    cessao_id=cessao.id,
+                    nome=p.nome.strip(),
+                    quantidade=p.quantidade,
+                )
+            )
+
         audit_log(
             self.session,
             action='cessao.create',
@@ -186,7 +214,8 @@ class CessaoService:
         await self.session.commit()
         await self.session.refresh(cessao)
         itens = await self._itens_da_cessao(cessao.id)
-        return self._serialize(cessao, itens)
+        perifs = await self._perifericos_da_cessao(cessao.id)
+        return self._serialize(cessao, itens, perifs)
 
     async def list_all(self, ctx: UserContext) -> list[dict]:
         is_full = ctx.is_privileged or ctx.is_tecnico_ti
@@ -232,8 +261,21 @@ class CessaoService:
         for ce, el in itens_query.all():
             itens_por_cessao[ce.cessao_id].append((ce, el))
 
+        # Periféricos de todas as cessões numa query só
+        perifs_query = await self.session.execute(
+            select(CessaoPeriferico)
+            .where(CessaoPeriferico.cessao_id.in_(cessao_ids))
+            .order_by(CessaoPeriferico.id)
+        )
+        perifs_por_cessao: dict[int, list] = {cid: [] for cid in cessao_ids}
+        for p in perifs_query.scalars().all():
+            perifs_por_cessao[p.cessao_id].append(p)
+
         return [
-            self._serialize(c, itens_por_cessao[c.id]) for c in cessoes
+            self._serialize(
+                c, itens_por_cessao[c.id], perifs_por_cessao[c.id]
+            )
+            for c in cessoes
         ]
 
     async def get_by_id(self, cessao_id: int, ctx: UserContext) -> dict:
@@ -262,7 +304,8 @@ class CessaoService:
                     detail='Sem permissão para ver esta cessão.',
                 )
 
-        return self._serialize(cessao, itens)
+        perifs = await self._perifericos_da_cessao(cessao_id)
+        return self._serialize(cessao, itens, perifs)
 
     async def devolver(  # noqa: PLR0914
         self,
@@ -387,7 +430,8 @@ class CessaoService:
         await self.session.commit()
         await self.session.refresh(cessao)
         itens_atualizados = await self._itens_da_cessao(cessao_id)
-        return self._serialize(cessao, itens_atualizados)
+        perifs = await self._perifericos_da_cessao(cessao_id)
+        return self._serialize(cessao, itens_atualizados, perifs)
 
     async def recebimentos_pendentes_gestor(
         self, ctx: UserContext
@@ -536,7 +580,8 @@ class CessaoService:
                 el.status = 'Interno'
                 el.localizacao = None
 
-        snapshot = self._serialize(cessao, itens)
+        perifs = await self._perifericos_da_cessao(cessao_id)
+        snapshot = self._serialize(cessao, itens, perifs)
         audit_log(
             self.session,
             action='cessao.delete',

@@ -8,10 +8,18 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.model.associacao_user_contrato import AssociacaoUserContrato
-from backend.model.cessao import Cessao, CessaoEletronico
+from backend.model.cessao import (
+    Cessao,
+    CessaoEletronico,
+    CessaoPeriferico,
+)
 from backend.model.contratos import Contrato
 from backend.model.eletronicos import Eletronico
-from backend.model.solicitacao import Solicitacao, SolicitacaoEletronico
+from backend.model.solicitacao import (
+    Solicitacao,
+    SolicitacaoEletronico,
+    SolicitacaoPeriferico,
+)
 from backend.model.user import User
 from backend.schemas.solicitacoes import (
     SolicitacaoCargoInicialCreate,
@@ -96,6 +104,20 @@ class SolicitacaoService:
         )
         return list(result.scalars().all())
 
+    async def _perifericos_da_solicitacao(
+        self, solicitacao_id: int
+    ) -> list[SolicitacaoPeriferico]:
+        result = await self.session.execute(
+            select(SolicitacaoPeriferico)
+            .where(SolicitacaoPeriferico.solicitacao_id == solicitacao_id)
+            .order_by(SolicitacaoPeriferico.id)
+        )
+        return list(result.scalars().all())
+
+    @staticmethod
+    def _periferico_to_dict(p: SolicitacaoPeriferico) -> dict:
+        return {'nome': p.nome, 'quantidade': p.quantidade}
+
     @staticmethod
     def _eletronico_to_dict(el: Eletronico) -> dict:
         return {
@@ -127,11 +149,16 @@ class SolicitacaoService:
             'responsavel': sol.responsavel,
             'criado_em': sol.criado_em,
             'eletronicos': [],
+            'perifericos': [],
         }
         if sol.tipo == 'cessao':
             els = await self._eletronicos_da_solicitacao(sol.id)
             data['eletronicos'] = [
                 self._eletronico_to_dict(e) for e in els
+            ]
+            perifs = await self._perifericos_da_solicitacao(sol.id)
+            data['perifericos'] = [
+                self._periferico_to_dict(p) for p in perifs
             ]
         return data
 
@@ -158,11 +185,27 @@ class SolicitacaoService:
             batch.setdefault(sol_id, []).append(el)
         return batch
 
+    async def _batch_perifericos(
+        self, sol_ids: list[int]
+    ) -> dict[int, list[SolicitacaoPeriferico]]:
+        if not sol_ids:
+            return {}
+        result = await self.session.execute(
+            select(SolicitacaoPeriferico)
+            .where(SolicitacaoPeriferico.solicitacao_id.in_(sol_ids))
+            .order_by(SolicitacaoPeriferico.id)
+        )
+        batch: dict[int, list[SolicitacaoPeriferico]] = {}
+        for p in result.scalars().all():
+            batch.setdefault(p.solicitacao_id, []).append(p)
+        return batch
+
     async def _serializar_lista(
         self, sols: list[Solicitacao]
     ) -> list[dict]:
         cessao_ids = [s.id for s in sols if s.tipo == 'cessao']
         batch = await self._batch_eletronicos(cessao_ids)
+        batch_perifs = await self._batch_perifericos(cessao_ids)
         out = []
         for sol in sols:
             data = {
@@ -178,11 +221,16 @@ class SolicitacaoService:
                 'responsavel': sol.responsavel,
                 'criado_em': sol.criado_em,
                 'eletronicos': [],
+                'perifericos': [],
             }
             if sol.tipo == 'cessao':
                 data['eletronicos'] = [
                     self._eletronico_to_dict(e)
                     for e in batch.get(sol.id, [])
+                ]
+                data['perifericos'] = [
+                    self._periferico_to_dict(p)
+                    for p in batch_perifs.get(sol.id, [])
                 ]
             out.append(data)
         return out
@@ -432,6 +480,15 @@ class SolicitacaoService:
                 )
             )
 
+        for p in data.perifericos:
+            self.session.add(
+                SolicitacaoPeriferico(
+                    solicitacao_id=nova.id,
+                    nome=p.nome.strip(),
+                    quantidade=p.quantidade,
+                )
+            )
+
         await self.session.commit()
         await self.session.refresh(nova)
         return await self._serialize(nova)
@@ -532,6 +589,17 @@ class SolicitacaoService:
                 CessaoEletronico(
                     cessao_id=cessao.id,
                     eletronico_id=e.id,
+                )
+            )
+
+        # Copia os periféricos propostos na solicitação para a cessão real
+        perifs = await self._perifericos_da_solicitacao(sol.id)
+        for p in perifs:
+            self.session.add(
+                CessaoPeriferico(
+                    cessao_id=cessao.id,
+                    nome=p.nome,
+                    quantidade=p.quantidade,
                 )
             )
 

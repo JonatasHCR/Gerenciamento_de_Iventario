@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from backend.schemas.cessao import PerifericoItem
 from backend.schemas.eletronicos import EletronicoRead
 
 
@@ -35,6 +36,10 @@ class SolicitacaoCessaoCreate(BaseModel):
     centro_custo_destino: str = Field(
         ..., min_length=1, description='CC destino da cessão'
     )
+    perifericos: list[PerifericoItem] = Field(
+        default_factory=list,
+        description='Periféricos avulsos (mouse, teclado, kit…) só p/ termo.',
+    )
 
 
 class SolicitacaoRead(BaseModel):
@@ -49,6 +54,7 @@ class SolicitacaoRead(BaseModel):
     centro_custo_destino: str | None = None
     responsavel: str | None = None
     eletronicos: list[EletronicoRead] = []
+    perifericos: list[PerifericoItem] = []
     criado_em: datetime
 
     model_config = {'from_attributes': True}
