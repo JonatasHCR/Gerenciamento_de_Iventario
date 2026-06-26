@@ -413,3 +413,89 @@ async def test_admin_exclui_solicitacao_rejeitada(
     )
 
     assert resp.status_code == HTTPStatus.OK
+
+
+# ─── Periféricos avulsos na cessão (só p/ termo) ───────────────────────────
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_create_cessao_com_perifericos(
+    async_client, async_db, login_teste
+):
+    await _criar_contrato(async_db, 'PF01')
+    await _criar_contrato(async_db, 'PF02')
+    e = await _criar_eletronico(async_db, 'PF01')
+    h = {'Authorization': f'Bearer {login_teste["token"]}'}
+
+    resp = await async_client.post(
+        '/cessoes/',
+        json={
+            'eletronico_ids': [e.id],
+            'responsavel': 'Fulano',
+            'centro_custo_destino': 'PF02',
+            'perifericos': [
+                {'nome': 'Mouse', 'quantidade': 2},
+                {'nome': 'Kit teclado e mouse', 'quantidade': 1},
+            ],
+        },
+        headers=h,
+    )
+
+    assert resp.status_code == HTTPStatus.CREATED
+    body = resp.json()
+    perifs = {p['nome']: p['quantidade'] for p in body['perifericos']}
+    assert perifs == {'Mouse': 2, 'Kit teclado e mouse': 1}
+
+    # persistido — aparece no GET por id
+    get = await async_client.get(f'/cessoes/{body["id"]}', headers=h)
+    assert get.status_code == HTTPStatus.OK
+    assert len(get.json()['perifericos']) == len(body['perifericos'])
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_create_cessao_sem_perifericos_default_vazio(
+    async_client, async_db, login_teste
+):
+    await _criar_contrato(async_db, 'PF03')
+    await _criar_contrato(async_db, 'PF04')
+    e = await _criar_eletronico(async_db, 'PF03')
+    h = {'Authorization': f'Bearer {login_teste["token"]}'}
+
+    resp = await async_client.post(
+        '/cessoes/',
+        json={
+            'eletronico_ids': [e.id],
+            'responsavel': 'X',
+            'centro_custo_destino': 'PF04',
+        },
+        headers=h,
+    )
+
+    assert resp.status_code == HTTPStatus.CREATED
+    assert resp.json()['perifericos'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_create_cessao_periferico_quantidade_invalida(
+    async_client, async_db, login_teste
+):
+    await _criar_contrato(async_db, 'PF05')
+    await _criar_contrato(async_db, 'PF06')
+    e = await _criar_eletronico(async_db, 'PF05')
+    h = {'Authorization': f'Bearer {login_teste["token"]}'}
+
+    resp = await async_client.post(
+        '/cessoes/',
+        json={
+            'eletronico_ids': [e.id],
+            'responsavel': 'X',
+            'centro_custo_destino': 'PF06',
+            'perifericos': [{'nome': 'Mouse', 'quantidade': 0}],
+        },
+        headers=h,
+    )
+
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY

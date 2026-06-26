@@ -269,3 +269,99 @@ async def test_funcionario_nao_pode_criar_contrato(async_client, async_db):
     )
 
     assert resp.status_code == HTTPStatus.FORBIDDEN
+
+
+# ─── Rename do código do CC (propagação) ─────────────────────────────────────
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_update_contrato_rename_propaga_eletronico(
+    async_client, login_teste
+):
+    """Renomear o código do CC propaga para os equipamentos."""
+    h = {'Authorization': f'Bearer {login_teste["token"]}'}
+    await async_client.post(
+        URL, json={'centro_custo': 'RN01', 'descricao': 'Origem'}, headers=h
+    )
+    el = await async_client.post(
+        '/eletronicos/',
+        json={
+            'numero_serie': 'SN-RN01',
+            'numero_patrimonio': 'PAT-RN01',
+            'nome': 'Equip RN',
+            'tipo': 'Scanner',
+            'status': 'Interno',
+            'centro_custo': 'RN01',
+        },
+        headers=h,
+    )
+    assert el.status_code == HTTPStatus.CREATED
+    el_id = el.json()['id']
+
+    resp = await async_client.put(
+        f'{URL}RN01',
+        json={'centro_custo': 'RN02', 'descricao': 'Origem'},
+        headers=h,
+    )
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json()['centro_custo'] == 'RN02'
+
+    el_get = await async_client.get('/eletronicos/', headers=h)
+    target = next(
+        (e for e in el_get.json()['eletronicos'] if e['id'] == el_id),
+        None,
+    )
+    assert target is not None
+    assert target['centro_custo'] == 'RN02'
+
+    ccs = await async_client.get(URL, headers=h)
+    codigos = {c['centro_custo'] for c in ccs.json()['contratos']}
+    assert 'RN01' not in codigos
+    assert 'RN02' in codigos
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_update_contrato_rename_propaga_associacao(
+    async_client, login_teste
+):
+    """Renomear o código do CC propaga para as associações user-CC."""
+    h = {'Authorization': f'Bearer {login_teste["token"]}'}
+    await async_client.post(
+        URL, json={'centro_custo': 'RN05', 'descricao': 'X'}, headers=h
+    )
+
+    resp = await async_client.put(
+        f'{URL}RN05',
+        json={'centro_custo': 'RN06', 'descricao': 'X'},
+        headers=h,
+    )
+    assert resp.status_code == HTTPStatus.OK
+
+    assoc = await async_client.get('/associacoes/contratos/', headers=h)
+    rows = assoc.json()['associacoes']
+    assert any(a['centro_custo'] == 'RN06' for a in rows)
+    assert all(a['centro_custo'] != 'RN05' for a in rows)
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_update_contrato_rename_colisao_conflict(
+    async_client, login_teste
+):
+    """Renomear para um código já existente retorna 409."""
+    h = {'Authorization': f'Bearer {login_teste["token"]}'}
+    await async_client.post(
+        URL, json={'centro_custo': 'RN03', 'descricao': 'A'}, headers=h
+    )
+    await async_client.post(
+        URL, json={'centro_custo': 'RN04', 'descricao': 'B'}, headers=h
+    )
+
+    resp = await async_client.put(
+        f'{URL}RN03',
+        json={'centro_custo': 'RN04', 'descricao': 'A'},
+        headers=h,
+    )
+    assert resp.status_code == HTTPStatus.CONFLICT
