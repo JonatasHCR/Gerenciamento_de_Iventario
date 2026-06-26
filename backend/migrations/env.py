@@ -14,6 +14,8 @@ from backend.model import (  # noqa: F401
     contratos,
     eletronicos,
     localizacao,
+    marca,
+    modelo,
     solicitacao,
     tipo_eletronico,
     user,
