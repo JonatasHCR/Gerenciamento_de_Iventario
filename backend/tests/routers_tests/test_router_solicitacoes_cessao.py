@@ -499,3 +499,57 @@ async def test_create_cessao_periferico_quantidade_invalida(
     )
 
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_solicitacao_cessao_carrega_perifericos_ate_a_cessao(
+    async_client, async_db
+):
+    """Periféricos da solicitação são copiados para a cessão real."""
+    await _criar_contrato(async_db, 'PFS')
+    gestor, gsenha = await _criar_usuario(async_db, 'g_pfs', 'Gestor')
+    await _associar(async_db, gestor.id, 'PFS', 'Gestor')
+    subg, ssenha = await _criar_usuario(async_db, 'sg_pfs', 'Subgestor')
+    await _associar(async_db, subg.id, 'PFS', 'Subgestor')
+    e = await _criar_eletronico(async_db, 'PFS')
+    stoken = await _login(async_client, subg.email, ssenha)
+
+    create_resp = await async_client.post(
+        f'{URL}/cessao',
+        json={
+            'eletronico_ids': [e.id],
+            'responsavel': 'RespPFS',
+            'centro_custo_destino': 'PFS',
+            'perifericos': [
+                {'nome': 'Mouse', 'quantidade': 1},
+                {'nome': 'Teclado', 'quantidade': 2},
+            ],
+        },
+        headers={'Authorization': f'Bearer {stoken}'},
+    )
+    assert create_resp.status_code == HTTPStatus.CREATED
+    body = create_resp.json()
+    perifs_sol = {
+        p['nome']: p['quantidade'] for p in body['perifericos']
+    }
+    assert perifs_sol == {'Mouse': 1, 'Teclado': 2}
+    sol_id = body['id']
+
+    gtoken = await _login(async_client, gestor.email, gsenha)
+    aprovar = await async_client.put(
+        f'{URL}/{sol_id}/aprovar',
+        headers={'Authorization': f'Bearer {gtoken}'},
+    )
+    assert aprovar.status_code == HTTPStatus.OK
+
+    list_cessoes = await async_client.get(
+        '/cessoes/', headers={'Authorization': f'Bearer {gtoken}'}
+    )
+    cessao = next(
+        c
+        for c in list_cessoes.json()['cessoes']
+        if c['responsavel'] == 'RespPFS'
+    )
+    perifs = {p['nome']: p['quantidade'] for p in cessao['perifericos']}
+    assert perifs == {'Mouse': 1, 'Teclado': 2}
