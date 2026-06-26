@@ -15,6 +15,8 @@ import {
   BarChart3,
   Tags,
   MapPin,
+  Factory,
+  Boxes,
   History,
 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
@@ -47,6 +49,8 @@ const NAV = [
   { href: '/solicitacoes', label: 'Solicitações', icon: ClipboardList },
   { href: '/tipos', label: 'Tipos', icon: Tags, roles: ['Admin'] },
   { href: '/localizacoes', label: 'Localizações', icon: MapPin, roles: ['Admin'] },
+  { href: '/marcas', label: 'Marcas', icon: Factory, roles: ['Admin'] },
+  { href: '/modelos', label: 'Modelos', icon: Boxes, roles: ['Admin'] },
   { href: '/auditoria', label: 'Auditoria', icon: History, roles: ['Admin'] },
 ] as const
 
@@ -110,6 +114,8 @@ export function MobileSidebar() {
             if (
               href === '/tipos' ||
               href === '/localizacoes' ||
+              href === '/marcas' ||
+              href === '/modelos' ||
               href === '/auditoria'
             ) {
               if (user?.tipo !== 'Admin') return null

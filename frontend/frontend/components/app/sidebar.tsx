@@ -16,6 +16,8 @@ import {
   BarChart3,
   Tags,
   MapPin,
+  Factory,
+  Boxes,
   History,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -68,6 +70,18 @@ const NAV = [
     href: '/localizacoes',
     label: 'Localizações',
     icon: MapPin,
+    roles: ['Admin'],
+  },
+  {
+    href: '/marcas',
+    label: 'Marcas',
+    icon: Factory,
+    roles: ['Admin'],
+  },
+  {
+    href: '/modelos',
+    label: 'Modelos',
+    icon: Boxes,
     roles: ['Admin'],
   },
   {
@@ -193,6 +207,8 @@ export function Sidebar() {
           if (
             href === '/tipos' ||
             href === '/localizacoes' ||
+            href === '/marcas' ||
+            href === '/modelos' ||
             href === '/auditoria'
           ) {
             if (user?.tipo !== 'Admin') return null

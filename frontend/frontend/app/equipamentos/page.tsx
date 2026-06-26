@@ -24,6 +24,8 @@ import {
   createLocalizacao,
   type Localizacao,
 } from '@/lib/api/localizacoes'
+import { getMarcas, createMarca, type Marca } from '@/lib/api/marcas'
+import { getModelos, createModelo, type Modelo } from '@/lib/api/modelos'
 import type {
   Eletronico,
   Contrato,
@@ -128,6 +130,12 @@ export default function EquipamentosPage() {
   const [localizacoes, setLocalizacoes] = useState<Localizacao[]>([])
   const [novaLocOpen, setNovaLocOpen] = useState(false)
   const [novaLocNome, setNovaLocNome] = useState('')
+  const [marcas, setMarcas] = useState<Marca[]>([])
+  const [modelos, setModelos] = useState<Modelo[]>([])
+  const [novaMarcaOpen, setNovaMarcaOpen] = useState(false)
+  const [novaMarcaNome, setNovaMarcaNome] = useState('')
+  const [novoModeloOpen, setNovoModeloOpen] = useState(false)
+  const [novoModeloNome, setNovoModeloNome] = useState('')
 
   // Debounce do search
   useEffect(() => {
@@ -169,6 +177,8 @@ export default function EquipamentosPage() {
     // Catálogo dinâmico — só os ativos pra alimentar o select
     getTipos(true).then(setTiposCatalogo).catch(() => {})
     getLocalizacoes().then(setLocalizacoes).catch(() => {})
+    getMarcas().then(setMarcas).catch(() => {})
+    getModelos().then(setModelos).catch(() => {})
   }, [])
 
   async function handleCriarLocalizacao(e: React.FormEvent) {
@@ -182,6 +192,44 @@ export default function EquipamentosPage() {
       setNovaLocNome('')
       setNovaLocOpen(false)
       toast.success(`Localização "${nova.nome}" criada.`)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro.')
+    }
+  }
+
+  async function handleCriarMarca(e: React.FormEvent) {
+    e.preventDefault()
+    const nome = novaMarcaNome.trim()
+    if (!nome) return
+    try {
+      const nova = await createMarca({ nome })
+      setMarcas((prev) => [...prev, nova])
+      // seleciona a nova marca e limpa o modelo (muda de contexto)
+      setForm((f) => ({ ...f, marca: nova.nome, modelo: '' }))
+      setNovaMarcaNome('')
+      setNovaMarcaOpen(false)
+      toast.success(`Marca "${nova.nome}" criada.`)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro.')
+    }
+  }
+
+  async function handleCriarModelo(e: React.FormEvent) {
+    e.preventDefault()
+    const nome = novoModeloNome.trim()
+    if (!nome) return
+    const marcaSel = marcas.find((m) => m.nome === form.marca)
+    if (!marcaSel) {
+      toast.error('Selecione uma marca antes de criar o modelo.')
+      return
+    }
+    try {
+      const novo = await createModelo({ nome, marca_id: marcaSel.id })
+      setModelos((prev) => [...prev, novo])
+      setForm((f) => ({ ...f, modelo: novo.nome }))
+      setNovoModeloNome('')
+      setNovoModeloOpen(false)
+      toast.success(`Modelo "${novo.nome}" criado.`)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erro.')
     }
@@ -573,8 +621,6 @@ export default function EquipamentosPage() {
                 ['nome', 'Nome', true],
                 ['numero_serie', 'Nº Série', true],
                 ['numero_patrimonio', 'Nº Patrimônio', true],
-                ['marca', 'Marca', false],
-                ['modelo', 'Modelo', false],
               ] as [keyof typeof EMPTY, string, boolean][]
             ).map(([field, label, required]) => (
               <div key={field} className="space-y-1">
@@ -597,6 +643,74 @@ export default function EquipamentosPage() {
                 />
               </div>
             ))}
+            <div className="space-y-1">
+              <Label>Marca</Label>
+              <div className="flex gap-1">
+                <div className="flex-1">
+                  <SearchableSelect
+                    value={form.marca}
+                    onChange={(v) =>
+                      // troca de marca: limpa o modelo (pertence à marca)
+                      setForm((f) => ({ ...f, marca: v, modelo: '' }))
+                    }
+                    options={marcas.map((m) => ({
+                      value: m.nome,
+                      label: m.nome,
+                    }))}
+                    placeholder="Selecione…"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setNovaMarcaOpen(true)}
+                  title="Criar nova marca"
+                  className="shrink-0"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Modelo</Label>
+              <div className="flex gap-1">
+                <div className="flex-1">
+                  <SearchableSelect
+                    value={form.modelo}
+                    onChange={(v) => setForm((f) => ({ ...f, modelo: v }))}
+                    options={modelos
+                      .filter((m) => m.marca_nome === form.marca)
+                      .map((m) => ({
+                        value: m.nome,
+                        label: m.nome,
+                        searchKey: `${m.nome} ${m.descricao ?? ''}`,
+                      }))}
+                    placeholder={
+                      form.marca
+                        ? 'Selecione…'
+                        : 'Escolha a marca primeiro'
+                    }
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    if (!form.marca) {
+                      toast.error('Escolha a marca primeiro.')
+                      return
+                    }
+                    setNovoModeloOpen(true)
+                  }}
+                  title="Criar novo modelo"
+                  className="shrink-0"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
             <div className="space-y-1">
               <Label>IP</Label>
               <Input
@@ -795,6 +909,57 @@ export default function EquipamentosPage() {
                 required
                 autoFocus
               />
+            </div>
+            <Button type="submit" className="w-full">
+              Criar e selecionar
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={novaMarcaOpen} onOpenChange={setNovaMarcaOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova marca</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCriarMarca} className="space-y-3">
+            <div className="space-y-1">
+              <Label>Nome <RequiredMark /></Label>
+              <Input
+                value={novaMarcaNome}
+                onChange={(e) => setNovaMarcaNome(e.target.value)}
+                placeholder="Ex.: Dell, HP, Samsung, …"
+                required
+                autoFocus
+              />
+            </div>
+            <Button type="submit" className="w-full">
+              Criar e selecionar
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={novoModeloOpen} onOpenChange={setNovoModeloOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Novo modelo {form.marca && `· ${form.marca}`}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCriarModelo} className="space-y-3">
+            <div className="space-y-1">
+              <Label>Nome <RequiredMark /></Label>
+              <Input
+                value={novoModeloNome}
+                onChange={(e) => setNovoModeloNome(e.target.value)}
+                placeholder="Ex.: Latitude 5420, EliteBook 840, …"
+                required
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                Será associado à marca <strong>{form.marca}</strong>.
+              </p>
             </div>
             <Button type="submit" className="w-full">
               Criar e selecionar
