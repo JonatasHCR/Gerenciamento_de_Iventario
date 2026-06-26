@@ -29,6 +29,11 @@ export interface RecebimentosPendentesGestor {
   items: RecebimentoPendenteItem[]
 }
 
+export interface Periferico {
+  nome: string
+  quantidade: number
+}
+
 export interface Cessao {
   id: number
   responsavel: string
@@ -43,6 +48,7 @@ export interface Cessao {
   total_pendentes: number
   eletronicos: EletronicoCessao[]
   devolucoes: Devolucao[]
+  perifericos: Periferico[]
 }
 
 export interface CessaoCreate {
@@ -50,6 +56,7 @@ export interface CessaoCreate {
   responsavel: string
   centro_custo_destino: string
   cedido_em?: string | null
+  perifericos?: Periferico[]
 }
 
 export interface CessaoDevolverPayload {

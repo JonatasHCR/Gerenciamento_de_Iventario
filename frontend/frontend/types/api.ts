@@ -56,6 +56,7 @@ export interface Solicitacao {
   centro_custo_destino?: string
   responsavel?: string
   eletronicos?: Eletronico[]
+  perifericos?: { nome: string; quantidade: number }[]
   criado_em: string
 }
 

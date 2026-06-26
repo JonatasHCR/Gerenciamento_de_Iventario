@@ -1,5 +1,6 @@
 import { apiFetch } from './client'
 import type { Solicitacao, Ocupacao } from '@/types/api'
+import type { Periferico } from './cessoes'
 
 export async function getSolicitacoes(): Promise<Solicitacao[]> {
   const res = await apiFetch<{ solicitacoes: Solicitacao[] }>('/solicitacoes/')
@@ -40,6 +41,7 @@ export async function createSolicitacaoCessao(data: {
   eletronico_ids: number[]
   responsavel: string
   centro_custo_destino: string
+  perifericos?: Periferico[]
 }): Promise<Solicitacao> {
   return apiFetch<Solicitacao>('/solicitacoes/cessao', {
     method: 'POST',
