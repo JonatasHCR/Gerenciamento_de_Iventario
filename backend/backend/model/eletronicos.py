@@ -19,7 +19,8 @@ class Eletronico(Base):
     numero_patrimonio = Column(String(100), nullable=False, unique=True)
     nome = Column(String(255), nullable=False)
     marca = Column(String(100))
-    tipo = Column(String(100), nullable=False)
+    # index: filtro `tipo IN (...)` em GET /eletronicos/
+    tipo = Column(String(100), nullable=False, index=True)
     modelo = Column(String(100))
     status = Column(String(50), nullable=False, index=True)
     ip = Column(String(15))
