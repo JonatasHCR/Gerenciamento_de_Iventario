@@ -136,6 +136,7 @@ export default function EquipamentosPage() {
   const [novaMarcaNome, setNovaMarcaNome] = useState('')
   const [novoModeloOpen, setNovoModeloOpen] = useState(false)
   const [novoModeloNome, setNovoModeloNome] = useState('')
+  const [novoModeloDescricao, setNovoModeloDescricao] = useState('')
 
   // Debounce do search
   useEffect(() => {
@@ -224,10 +225,24 @@ export default function EquipamentosPage() {
       return
     }
     try {
-      const novo = await createModelo({ nome, marca_id: marcaSel.id })
+      const novo = await createModelo({
+        nome,
+        marca_id: marcaSel.id,
+        descricao: novoModeloDescricao.trim() || null,
+      })
       setModelos((prev) => [...prev, novo])
-      setForm((f) => ({ ...f, modelo: novo.nome }))
+      // seleciona o modelo e traz a descrição cadastrada, só se o
+      // campo ainda estiver vazio (não sobrescreve o que já foi digitado)
+      setForm((f) => ({
+        ...f,
+        modelo: novo.nome,
+        descricao:
+          f.descricao.trim() === '' && novo.descricao
+            ? novo.descricao
+            : f.descricao,
+      }))
       setNovoModeloNome('')
+      setNovoModeloDescricao('')
       setNovoModeloOpen(false)
       toast.success(`Modelo "${novo.nome}" criado.`)
     } catch (err: unknown) {
@@ -678,7 +693,22 @@ export default function EquipamentosPage() {
                 <div className="flex-1">
                   <SearchableSelect
                     value={form.modelo}
-                    onChange={(v) => setForm((f) => ({ ...f, modelo: v }))}
+                    onChange={(v) => {
+                      // Ao escolher o modelo, traz a descrição dele —
+                      // mas só se o campo ainda estiver vazio (não
+                      // sobrescreve peculiaridades já digitadas).
+                      const mod = modelos.find(
+                        (m) => m.nome === v && m.marca_nome === form.marca,
+                      )
+                      setForm((f) => ({
+                        ...f,
+                        modelo: v,
+                        descricao:
+                          f.descricao.trim() === '' && mod?.descricao
+                            ? mod.descricao
+                            : f.descricao,
+                      }))
+                    }}
                     options={modelos
                       .filter((m) => m.marca_nome === form.marca)
                       .map((m) => ({
@@ -702,6 +732,8 @@ export default function EquipamentosPage() {
                       toast.error('Escolha a marca primeiro.')
                       return
                     }
+                    setNovoModeloNome('')
+                    setNovoModeloDescricao('')
                     setNovoModeloOpen(true)
                   }}
                   title="Criar novo modelo"
@@ -838,7 +870,46 @@ export default function EquipamentosPage() {
               </div>
             )}
             <div className="space-y-1 sm:col-span-2">
-              <Label>Descrição</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label>Descrição</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    const mod = modelos.find(
+                      (m) =>
+                        m.nome === form.modelo &&
+                        m.marca_nome === form.marca,
+                    )
+                    if (!form.modelo || !mod) {
+                      toast.error('Selecione um modelo primeiro.')
+                      return
+                    }
+                    if (!mod.descricao || !mod.descricao.trim()) {
+                      toast.error(
+                        `O modelo "${mod.nome}" não tem descrição cadastrada.`,
+                      )
+                      return
+                    }
+                    if (
+                      form.descricao.trim() &&
+                      !confirm(
+                        'Isso vai SOBRESCREVER toda a descrição atual do ' +
+                          'equipamento pela descrição do modelo. Continuar?',
+                      )
+                    ) {
+                      return
+                    }
+                    setForm((f) => ({ ...f, descricao: mod.descricao ?? '' }))
+                    toast.success('Descrição do modelo carregada.')
+                  }}
+                >
+                  <FileText className="mr-1 h-3 w-3" />
+                  Carregar descrição do modelo
+                </Button>
+              </div>
               <Textarea
                 value={form.descricao}
                 onChange={(e) =>
@@ -960,6 +1031,15 @@ export default function EquipamentosPage() {
               <p className="text-xs text-muted-foreground">
                 Será associado à marca <strong>{form.marca}</strong>.
               </p>
+            </div>
+            <div className="space-y-1">
+              <Label>Descrição (opcional)</Label>
+              <Textarea
+                value={novoModeloDescricao}
+                onChange={(e) => setNovoModeloDescricao(e.target.value)}
+                rows={3}
+                placeholder="Descrição do modelo (preenche a descrição do equipamento)"
+              />
             </div>
             <Button type="submit" className="w-full">
               Criar e selecionar
