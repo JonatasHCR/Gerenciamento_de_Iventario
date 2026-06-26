@@ -14,6 +14,7 @@ import {
 import { getMarcas, type Marca } from '@/lib/api/marcas'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { RequiredMark } from '@/components/ui/required-mark'
 import {
@@ -238,11 +239,12 @@ export default function ModelosPage() {
             </div>
             <div className="space-y-1">
               <Label>Descrição (opcional)</Label>
-              <Input
+              <Textarea
                 value={form.descricao}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, descricao: e.target.value }))
                 }
+                rows={3}
               />
             </div>
             <Button type="submit" className="w-full">

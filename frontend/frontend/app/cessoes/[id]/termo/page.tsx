@@ -86,6 +86,34 @@ export default function TermoPage() {
         </tbody>
       </table>
 
+      {cessao.perifericos && cessao.perifericos.length > 0 && (
+        <>
+          <p className="mb-2">Periféricos / Acessórios:</p>
+          <table className="mb-8 w-full border-collapse border border-black text-sm">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="border border-black px-2 py-1 text-left">
+                  ITEM
+                </th>
+                <th className="w-28 border border-black px-2 py-1 text-left">
+                  QUANTIDADE
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {cessao.perifericos.map((p, i) => (
+                <tr key={i}>
+                  <td className="border border-black px-2 py-1">{p.nome}</td>
+                  <td className="border border-black px-2 py-1">
+                    {p.quantidade}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
       <p className="mb-16">Lauro de Freitas, {dataExtenso(cessao.cedido_em)}</p>
 
       <div className="space-y-12 text-center">

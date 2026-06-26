@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { getEletronicosPaginated } from '@/lib/api/eletronicos'
-import { createCessao } from '@/lib/api/cessoes'
+import { createCessao, type Periferico } from '@/lib/api/cessoes'
 import { createSolicitacaoCessao } from '@/lib/api/solicitacoes'
 import { getContratos } from '@/lib/api/contratos'
 import { getAssociacoesContrato } from '@/lib/api/associacoes'
@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label'
 import { RequiredMark } from '@/components/ui/required-mark'
 import { Badge } from '@/components/ui/badge'
 import { SearchableSelect } from '@/components/app/searchable-select'
-import { ArrowLeft, FileText, Send } from 'lucide-react'
+import { ArrowLeft, FileText, Send, Plus, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 
 export default function CederPage() {
@@ -37,6 +37,7 @@ export default function CederPage() {
   const [responsavel, setResponsavel] = useState('')
   const [ccDestino, setCcDestino] = useState('')
   const [dataCessao, setDataCessao] = useState('')
+  const [perifericos, setPerifericos] = useState<Periferico[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [ready, setReady] = useState(false)
 
@@ -144,6 +145,23 @@ export default function CederPage() {
       : meusCCsOperaveis
   }, [hasFullAccess, contratos, meusCCsOperaveis])
 
+  function addPeriferico() {
+    setPerifericos((p) => [...p, { nome: '', quantidade: 1 }])
+  }
+
+  function updatePeriferico(
+    idx: number,
+    patch: Partial<Periferico>,
+  ) {
+    setPerifericos((p) =>
+      p.map((item, i) => (i === idx ? { ...item, ...patch } : item)),
+    )
+  }
+
+  function removePeriferico(idx: number) {
+    setPerifericos((p) => p.filter((_, i) => i !== idx))
+  }
+
   function toggle(id: number) {
     setSelecionados((s) => {
       const n = new Set(s)
@@ -176,6 +194,9 @@ export default function CederPage() {
       return
     }
     const ids = Array.from(selecionados)
+    const perifericosLimpos = perifericos
+      .map((p) => ({ nome: p.nome.trim(), quantidade: p.quantidade }))
+      .filter((p) => p.nome !== '')
     setSubmitting(true)
     try {
       if (isSubgestorOnly) {
@@ -183,6 +204,7 @@ export default function CederPage() {
           eletronico_ids: ids,
           responsavel,
           centro_custo_destino: ccDestino,
+          perifericos: perifericosLimpos,
         })
         toast.success('Solicitação enviada ao Gestor.')
         router.push('/solicitacoes')
@@ -196,6 +218,7 @@ export default function CederPage() {
         cedido_em: dataCessao
           ? new Date(dataCessao + 'T12:00:00').toISOString()
           : null,
+        perifericos: perifericosLimpos,
       })
       toast.success('Cessão registrada! Abrindo termo…')
       router.push(`/cessoes/${cessao.id}/termo`)
@@ -393,6 +416,64 @@ export default function CederPage() {
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="space-y-2 rounded-md border bg-card p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Periféricos avulsos</p>
+                <p className="text-xs text-muted-foreground">
+                  Mouse, teclado, kit teclado+mouse, etc. — sem patrimônio,
+                  fora do controle de inventário, apenas para constar no termo.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addPeriferico}
+              >
+                <Plus className="mr-1 h-4 w-4" /> Adicionar
+              </Button>
+            </div>
+            {perifericos.length > 0 && (
+              <div className="space-y-2">
+                {perifericos.map((p, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <Input
+                      value={p.nome}
+                      onChange={(e) =>
+                        updatePeriferico(idx, { nome: e.target.value })
+                      }
+                      placeholder="Ex.: Mouse, Teclado, Kit teclado e mouse"
+                      className="flex-1"
+                    />
+                    <Input
+                      type="number"
+                      min={1}
+                      value={p.quantidade}
+                      onChange={(e) =>
+                        updatePeriferico(idx, {
+                          quantidade: Math.max(1, Number(e.target.value) || 1),
+                        })
+                      }
+                      className="w-20"
+                      title="Quantidade"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 shrink-0 text-destructive"
+                      onClick={() => removePeriferico(idx)}
+                      title="Remover"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
         </div>
 
         <div className="flex items-center justify-between rounded-md border bg-card p-3">

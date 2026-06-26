@@ -3,7 +3,12 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
-import { getContratos, createContrato, deleteContrato } from '@/lib/api/contratos'
+import {
+  getContratos,
+  createContrato,
+  updateContrato,
+  deleteContrato,
+} from '@/lib/api/contratos'
 import {
   getAssociacoesContrato,
   deleteAssociacaoContrato,
@@ -32,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Trash2, Users, LogOut, UserPlus } from 'lucide-react'
+import { Plus, Pencil, Trash2, Users, LogOut, UserPlus } from 'lucide-react'
 
 const OCUPACOES: Ocupacao[] = ['Gestor', 'Subgestor', 'Funcionario']
 
@@ -48,6 +53,10 @@ export default function CentrosDeCustoPage() {
   const [openNovo, setOpenNovo] = useState(false)
   const [novoCc, setNovoCc] = useState('')
   const [novaDesc, setNovaDesc] = useState('')
+
+  const [editando, setEditando] = useState<Contrato | null>(null)
+  const [editCc, setEditCc] = useState('')
+  const [editDesc, setEditDesc] = useState('')
 
   const [openEntrada, setOpenEntrada] = useState<string | null>(null)
   const [cargoEntrada, setCargoEntrada] = useState<Ocupacao>('Funcionario')
@@ -92,6 +101,39 @@ export default function CentrosDeCustoPage() {
       load()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erro ao criar.')
+    }
+  }
+
+  function abrirEditar(c: Contrato) {
+    setEditando(c)
+    setEditCc(c.centro_custo)
+    setEditDesc(c.descricao)
+  }
+
+  async function handleUpdate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editando) return
+    const codigoMudou = editCc !== editando.centro_custo
+    if (
+      codigoMudou &&
+      !confirm(
+        `Alterar o código de "${editando.centro_custo}" para "${editCc}"? ` +
+          'Isso vai atualizar todos os equipamentos, associações, ' +
+          'cessões e solicitações desse CC.',
+      )
+    ) {
+      return
+    }
+    try {
+      await updateContrato(editando.centro_custo, {
+        centro_custo: editCc,
+        descricao: editDesc,
+      })
+      toast.success('Centro de custo atualizado!')
+      setEditando(null)
+      load()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar.')
     }
   }
 
@@ -214,6 +256,8 @@ export default function CentrosDeCustoPage() {
           )
           const ehUnicoGestor =
             minhaAssoc?.ocupacao === 'Gestor' && gestoresVisiveis.length === 1
+          const podeEditar =
+            user?.tipo === 'Admin' || minhaAssoc?.ocupacao === 'Gestor'
 
           return (
             <div
@@ -227,16 +271,30 @@ export default function CentrosDeCustoPage() {
                     {c.descricao}
                   </p>
                 </div>
-                {canCreate && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7 text-destructive"
-                    onClick={() => handleDelete(c.centro_custo)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
+                <div className="flex gap-1">
+                  {podeEditar && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={() => abrirEditar(c)}
+                      title="Editar CC"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {canCreate && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 text-destructive"
+                      onClick={() => handleDelete(c.centro_custo)}
+                      title="Excluir CC"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="flex items-center justify-between border-t pt-2 text-sm">
                 <div>
@@ -288,6 +346,45 @@ export default function CentrosDeCustoPage() {
           </p>
         )}
       </div>
+
+      <Dialog
+        open={editando !== null}
+        onOpenChange={(o) => !o && setEditando(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar CC {editando?.centro_custo}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdate} className="space-y-3">
+            <div className="space-y-1">
+              <Label>Código <RequiredMark /></Label>
+              <Input
+                value={editCc}
+                onChange={(e) => setEditCc(e.target.value.toUpperCase())}
+                required
+                maxLength={4}
+                placeholder="Ex.: TI01"
+              />
+              <p className="text-xs text-muted-foreground">
+                Máximo 4 caracteres. Mudar o código atualiza
+                automaticamente equipamentos, associações, cessões e
+                solicitações vinculados.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label>Descrição <RequiredMark /></Label>
+              <Input
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full">
+              Salvar
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={openEntrada !== null}
