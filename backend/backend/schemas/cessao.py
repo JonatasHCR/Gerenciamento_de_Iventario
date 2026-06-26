@@ -6,12 +6,23 @@ from pydantic import BaseModel, Field
 from backend.schemas.eletronicos import EletronicoRead
 
 
+class PerifericoItem(BaseModel):
+    """Periférico avulso (sem patrimônio) — só consta no termo."""
+
+    nome: str = Field(..., min_length=1, max_length=255)
+    quantidade: int = Field(1, ge=1)
+
+
 class CessaoCreate(BaseModel):
     eletronico_ids: list[int] = Field(..., min_length=1)
     responsavel: str = Field(..., min_length=1)
     centro_custo_destino: str = Field(..., min_length=1)
     cedido_em: datetime | None = Field(
         None, description='Data da cessão. Se omitido, usa o momento atual.'
+    )
+    perifericos: list[PerifericoItem] = Field(
+        default_factory=list,
+        description='Periféricos avulsos (mouse, teclado, kit…) só p/ termo.',
     )
 
 
@@ -70,6 +81,7 @@ class CessaoRead(BaseModel):
     total_pendentes: int
     eletronicos: list[EletronicoCessaoRead] = []
     devolucoes: list[DevolucaoRead] = []
+    perifericos: list[PerifericoItem] = []
 
     model_config = {'from_attributes': True}
 

@@ -6,6 +6,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
@@ -35,7 +36,8 @@ class Modelo(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     nome = Column(String(100), nullable=False, index=True)
-    descricao = Column(String(255), nullable=True)
+    # Text (igual ao Eletronico.descricao) — multilinha, sem limite rígido.
+    descricao = Column(Text, nullable=True)
     marca_id = Column(
         Integer,
         ForeignKey('tb_marcas.id', ondelete='CASCADE'),

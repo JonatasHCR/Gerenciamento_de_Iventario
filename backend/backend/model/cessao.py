@@ -43,6 +43,34 @@ class Cessao(Base):
         back_populates='cessao',
         cascade='all, delete-orphan',
     )
+    perifericos = relationship(
+        'CessaoPeriferico',
+        back_populates='cessao',
+        cascade='all, delete-orphan',
+    )
+
+
+class CessaoPeriferico(Base):
+    """
+    Periféricos avulsos incluídos numa cessão (mouse, teclado, kit
+    teclado+mouse, etc.). São digitados livremente, **não têm
+    patrimônio** e **não fazem parte do controle de inventário** —
+    existem só para constar no Termo de Responsabilidade.
+    """
+
+    __tablename__ = 'tb_cessao_periferico'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cessao_id = Column(
+        Integer,
+        ForeignKey('tb_cessoes.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    nome = Column(String(255), nullable=False)
+    quantidade = Column(Integer, nullable=False, default=1)
+
+    cessao = relationship('Cessao', back_populates='perifericos')
 
 
 class CessaoEletronico(Base):

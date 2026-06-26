@@ -2,11 +2,15 @@ from http import HTTPStatus
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
+from sqlalchemy import update as sa_update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.model.associacao_user_contrato import AssociacaoUserContrato
+from backend.model.cessao import Cessao
 from backend.model.contratos import Contrato
+from backend.model.eletronicos import Eletronico
+from backend.model.solicitacao import Solicitacao
 from backend.model.user import User
 from backend.schemas.contratos import ContratoCreate
 from backend.security.dependencies import UserContext
@@ -96,40 +100,104 @@ class ContratoService:
     async def update(
         self, centro_custo: str, contrato: ContratoCreate, ctx: UserContext
     ):
-        """Apenas Admin ou Gestor do próprio CC (por ocupação)."""
+        """
+        Apenas Admin ou Gestor do próprio CC (por ocupação).
+
+        Permite **renomear o código do CC** (a PK). Quando o código muda,
+        a alteração é propagada para tudo que referencia o CC:
+        equipamentos, associações, solicitações (FK com ON UPDATE CASCADE)
+        e as colunas-string sem FK (destino de cessões/solicitações).
+
+        No Postgres os FKs com ON UPDATE CASCADE propagam sozinhos; os
+        UPDATEs explícitos abaixo cobrem as colunas sem FK e o ambiente
+        de teste (SQLite com FK desligado).
+        """
         ctx.assert_cc_role(centro_custo, 'Gestor')
 
-        result = await self.session.execute(
-            select(Contrato).where(Contrato.centro_custo == centro_custo)
+        atual = await self.session.scalar(
+            select(Contrato.centro_custo).where(
+                Contrato.centro_custo == centro_custo
+            )
         )
-        existing = result.scalar_one_or_none()
-        if existing is None:
+        if atual is None:
             raise HTTPException(
                 status_code=HTTPStatus.NOT_FOUND,
                 detail='Contrato não encontrado.',
             )
 
-        data = contrato.model_dump(exclude_unset=True)
-        antes = {'descricao': existing.descricao}
-        for key, value in data.items():
-            setattr(existing, key, value)
+        novo_cc = contrato.centro_custo
+        renomeando = novo_cc != centro_custo
 
-        audit_log(
-            self.session,
-            action='contrato.update',
-            user_id=ctx.user.id,
-            target_type='contrato',
-            target_id=None,
-            payload={
-                'centro_custo': centro_custo,
-                'antes': antes,
-                'depois': data,
-            },
+        if renomeando:
+            colide = await self.session.scalar(
+                select(Contrato.centro_custo).where(
+                    Contrato.centro_custo == novo_cc
+                )
+            )
+            if colide is not None:
+                raise HTTPException(
+                    status_code=HTTPStatus.CONFLICT,
+                    detail='Já existe um centro de custo com esse código.',
+                )
+
+        try:
+            await self.session.execute(
+                sa_update(Contrato)
+                .where(Contrato.centro_custo == centro_custo)
+                .values(centro_custo=novo_cc, descricao=contrato.descricao)
+            )
+
+            if renomeando:
+                propagacoes = (
+                    sa_update(Eletronico)
+                    .where(Eletronico.centro_custo == centro_custo)
+                    .values(centro_custo=novo_cc),
+                    sa_update(AssociacaoUserContrato)
+                    .where(AssociacaoUserContrato.centro_custo == centro_custo)
+                    .values(centro_custo=novo_cc),
+                    sa_update(Solicitacao)
+                    .where(Solicitacao.centro_custo == centro_custo)
+                    .values(centro_custo=novo_cc),
+                    sa_update(Cessao)
+                    .where(Cessao.centro_custo_destino == centro_custo)
+                    .values(centro_custo_destino=novo_cc),
+                    sa_update(Solicitacao)
+                    .where(Solicitacao.centro_custo_destino == centro_custo)
+                    .values(centro_custo_destino=novo_cc),
+                )
+                for stmt in propagacoes:
+                    await self.session.execute(
+                        stmt.execution_options(synchronize_session=False)
+                    )
+
+            audit_log(
+                self.session,
+                action='contrato.update',
+                user_id=ctx.user.id,
+                target_type='contrato',
+                target_id=None,
+                payload={
+                    'centro_custo': centro_custo,
+                    'antes': {'centro_custo': centro_custo},
+                    'depois': {
+                        'centro_custo': novo_cc,
+                        'descricao': contrato.descricao,
+                    },
+                },
+            )
+
+            await self.session.commit()
+        except IntegrityError:
+            await self.session.rollback()
+            raise HTTPException(
+                status_code=HTTPStatus.CONFLICT,
+                detail='numero de centro de custo já existe',
+            )
+
+        result = await self.session.execute(
+            select(Contrato).where(Contrato.centro_custo == novo_cc)
         )
-
-        await self.session.commit()
-        await self.session.refresh(existing)
-        return existing
+        return result.scalar_one()
 
     async def delete(self, centro_custo: str, ctx: UserContext):
         """Apenas Admin ou Gestor do próprio CC (por ocupação)."""

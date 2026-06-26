@@ -51,6 +51,11 @@ class Solicitacao(Base):
         back_populates='solicitacao',
         cascade='all, delete-orphan',
     )
+    perifericos = relationship(
+        'SolicitacaoPeriferico',
+        back_populates='solicitacao',
+        cascade='all, delete-orphan',
+    )
 
     __table_args__ = (
         ForeignKeyConstraint(
@@ -64,6 +69,7 @@ class Solicitacao(Base):
             ['tb_contratos.centro_custo'],
             name='fk_solicitacao_centro_custo',
             ondelete='CASCADE',
+            onupdate='CASCADE',
         ),
         ForeignKeyConstraint(
             ['convidado_por_id'],
@@ -111,4 +117,28 @@ class SolicitacaoEletronico(Base):
 
     solicitacao = relationship(
         'Solicitacao', back_populates='eletronicos_assoc'
+    )
+
+
+class SolicitacaoPeriferico(Base):
+    """
+    Periféricos avulsos propostos numa solicitação de cessão (Subgestor
+    → Gestor). Ao aprovar, são copiados para a Cessao real. Sem
+    patrimônio, fora do controle de inventário — só p/ o termo.
+    """
+
+    __tablename__ = 'tb_solicitacao_periferico'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    solicitacao_id = Column(
+        Integer,
+        ForeignKey('tb_solicitacoes.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    nome = Column(String(255), nullable=False)
+    quantidade = Column(Integer, nullable=False, default=1)
+
+    solicitacao = relationship(
+        'Solicitacao', back_populates='perifericos'
     )
