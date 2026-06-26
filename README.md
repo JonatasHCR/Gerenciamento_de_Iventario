@@ -30,6 +30,11 @@ ciclo de vida de cada peça.
 - 📍 **Catálogo de localizações** — locais nomeados (Sala TI, Almoxarifado…)
   selecionáveis no form de equipamento; qualquer usuário pode criar nova
   localização inline (Admin gerencia a lista)
+- 🏭 **Catálogo de marcas e modelos** — modelo sempre **associado a uma
+  marca** (ex.: `OptiPlex 5090 → Dell`); o modelo guarda uma **descrição**
+  que é carregada automaticamente na descrição do equipamento quando o
+  campo está vazio. Qualquer usuário cria marca/modelo inline no form;
+  Admin gerencia as listas (`/marcas`, `/modelos`)
 - 🔔 **Notificações** em tempo real para o Gestor quando um
   equipamento é devolvido no CC dele
 - 🔒 **Audit log** completo: toda criação, exclusão e mudança crítica
@@ -128,6 +133,10 @@ o mesmo usuário pode ser Gestor em um CC e só Funcionário em outro.
 - 📍 **Localizações** (`/localizacoes`): consolidar/editar/excluir a
   lista de locais (Sala TI, Almoxarifado, etc.) — qualquer usuário cria
   inline ao cadastrar equipamento, Admin organiza
+- 🏭 **Marcas** (`/marcas`) e **Modelos** (`/modelos`): gerenciar o
+  catálogo de fabricantes e seus modelos (cada modelo pertence a uma
+  marca e tem descrição própria) — qualquer usuário cria inline ao
+  cadastrar equipamento, Admin consolida
 - 📜 **Auditoria** (`/auditoria`): histórico de ações críticas com
   filtros por ação, recurso e autor
 - 📊 **Relatórios** completos de toda a base
@@ -326,6 +335,24 @@ Detalhes em [backend/README.md](backend/README.md) e
 - Para cargos acima de Funcionário, o usuário envia
   `solicitacao.cargo_inicial` — só Admin aprova.
 
+### Catálogo de marcas e modelos
+
+- **Marca** (`tb_marcas`): só nome (único) — a descrição **não** fica na
+  marca.
+- **Modelo** (`tb_modelos`): nome + **descrição** + `marca_id` (FK com
+  `ON DELETE CASCADE`). O nome do modelo é único **por marca**, então o
+  mesmo nome pode existir em marcas diferentes.
+- `Eletronico.marca` e `Eletronico.modelo` continuam como **texto** — a
+  ligação com o catálogo é por nome (mesmo padrão de localizações/tipos),
+  com rename em cascata quando o Admin renomeia uma marca/modelo.
+- No form de equipamento, o select de modelo é **filtrado pela marca**
+  escolhida; criar/escolher um modelo carrega a descrição dele na
+  descrição do equipamento **apenas se o campo estiver vazio** (não
+  sobrescreve peculiaridades já digitadas). O botão **"Carregar descrição
+  do modelo"** força a sobrescrita, com confirmação.
+- Qualquer usuário autenticado pode criar marca/modelo; só Admin
+  edita/exclui (`/marcas`, `/modelos`).
+
 ### Cessões com devolução parcial
 
 - Uma cessão pode ter múltiplos lotes de devolução.
@@ -387,8 +414,8 @@ cd backend
 task test
 ```
 
-187 testes, 97% de cobertura. Suíte usa SQLite em memória via override
-de dependência.
+247 testes (inclui o CRUD de marcas e modelos). Suíte usa SQLite em
+memória via override de dependência.
 
 ---
 

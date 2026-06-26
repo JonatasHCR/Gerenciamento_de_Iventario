@@ -50,6 +50,8 @@ backend/
 │   │   ├── audit_log.py        # tb_audit_log
 │   │   ├── tipo_eletronico.py  # tb_tipos_eletronico (catálogo dinâmico)
 │   │   ├── localizacao.py      # tb_localizacoes (catálogo dinâmico)
+│   │   ├── marca.py            # tb_marcas (catálogo)
+│   │   ├── modelo.py           # tb_modelos (catálogo, FK → tb_marcas)
 │   │   └── ... (user, contrato, eletronico, cessao, solicitacao, associações)
 │   ├── schemas/                # Pydantic v2 (Create, Update, Read, List)
 │   ├── routers/                # Handlers HTTP finos
@@ -71,7 +73,12 @@ task test       # pytest -s -x --cov=backend -vv (+ coverage html)
 
 ## Migrations
 
-O esquema atual está consolidado em **uma única migration inicial** (`8b33ec3fe9f3_initial_schema.py`) que cria todas as 11 tabelas, índices, constraints e seed dos 5 tipos default.
+O esquema parte de uma migration inicial consolidada (`8b33ec3fe9f3_initial_schema.py`) que cria as tabelas base, índices, constraints e seed dos 5 tipos default. Migrations posteriores adicionam recursos incrementais, entre elas:
+
+- `a1f8c4d9b372` — `tb_localizacoes`
+- `b5c9e2f1a8d3` — `tb_marcas` e `tb_modelos`
+- `c7d1a3e9f2b4` — backfill de marcas/modelos a partir de `tb_eletronicos`
+- `d9f2b6c1a4e7` — backfill da descrição dos modelos (descrição mais recente por marca+modelo)
 
 ```bash
 alembic revision --autogenerate -m "descrição"   # gera nova migration
@@ -279,6 +286,34 @@ Diferentemente do catálogo de tipos (`/tipos-eletronico/`), aqui qualquer usuá
 
 Sem CHECK constraint no `Eletronico.localizacao` — a validação é "soft": o frontend apenas usa o catálogo pra autocompletar/manter consistência. O backend aceita qualquer string (mantendo retrocompatibilidade).
 
+## Catálogo de marcas e modelos (`/marcas/`, `/modelos/`)
+
+Catálogo de fabricantes (`tb_marcas`) e seus modelos (`tb_modelos`), no mesmo padrão "soft" das localizações: `Eletronico.marca` e `Eletronico.modelo` continuam **strings**, referenciadas por nome, com rename em cascata.
+
+**Modelos:**
+- `Marca`: `id`, `nome` (único), `criado_em`. **Sem descrição** — a descrição é do modelo.
+- `Modelo`: `id`, `nome`, `descricao`, `marca_id` (FK → `tb_marcas`, `ON DELETE CASCADE`), `criado_em`. Unique `(marca_id, nome)` — o mesmo nome de modelo pode existir em marcas diferentes. `ModeloRead` expõe `marca_nome` (via relationship).
+
+**Endpoints — `/marcas/`:**
+
+| Método | Rota | Quem |
+|---|---|---|
+| `GET` | `/marcas/` | Qualquer autenticado |
+| `POST` | `/marcas/` | **Qualquer autenticado** (criar inline ao cadastrar equipamento) |
+| `PUT` | `/marcas/{id}` | Admin (rename faz cascade em `tb_eletronicos.marca`) |
+| `DELETE` | `/marcas/{id}` | Admin (remove os modelos da marca via FK CASCADE) |
+
+**Endpoints — `/modelos/`:**
+
+| Método | Rota | Quem |
+|---|---|---|
+| `GET` | `/modelos/?marca_id={id}` | Qualquer autenticado (filtro opcional por marca) |
+| `POST` | `/modelos/` | **Qualquer autenticado** — exige `marca_id` válido (422 se não existir) |
+| `PUT` | `/modelos/{id}` | Admin (rename faz cascade em `tb_eletronicos.modelo`) |
+| `DELETE` | `/modelos/{id}` | Admin |
+
+No frontend, o select de modelo é filtrado pela marca escolhida; selecionar/criar um modelo carrega a descrição dele na descrição do equipamento **só se o campo estiver vazio** (botão "Carregar descrição do modelo" força a sobrescrita).
+
 ## Audit log (`/audit-log/`)
 
 Tabela append-only `tb_audit_log` registra ações críticas:
@@ -300,6 +335,7 @@ Helper: `service/audit_log.py:log(session, action, user_id, target_type, target_
 ## Validações no model
 
 - `Eletronico.tipo` — validado contra `tb_tipos_eletronico` (não há CHECK constraint; soft-validation no service)
+- `Eletronico.marca` / `Eletronico.modelo` — strings referenciando os catálogos `tb_marcas` / `tb_modelos` por nome (soft, sem CHECK; rename em cascata)
 - `Eletronico.status IN ('Interno', 'Externo', 'Em Manutenção')` — `check_status_valid`
 - `Eletronico.centro_custo` FK para `tb_contratos.centro_custo` (CASCADE)
 - `Contrato.centro_custo` — `VARCHAR(4)` no DB; Pydantic `ContratoCreate` valida `max_length=4` (retorna 422 antes de chegar ao banco, evitando `StringDataRightTruncationError`)
@@ -315,7 +351,7 @@ pytest tests/routers_tests/test_router_users.py -s -x -vv  # arquivo único
 pytest -k "test_create_user" -vv                           # filtro por nome
 ```
 
-**Cobertura atual: 97%, 187 testes.**
+**247 testes** (inclui o CRUD de marcas e modelos).
 
 Tests usam SQLite (`aiosqlite`) em memória via override do `EngineApp.get_async_session`. O conftest faz seed automático dos 5 tipos default + desabilita rate-limit. Factories em `tests/conftest.py` (`FactoryUser`, `FactoryEletronico`, `FactoryContrato`).
 
