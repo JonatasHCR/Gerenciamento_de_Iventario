@@ -22,7 +22,9 @@ ciclo de vida de cada peça.
   Funcionário)
 - 🔄 **Cessões e devoluções** entre CCs com geração automática de
   Termo de Responsabilidade e Termo de Recebimento em PDF; suporta
-  **devolução parcial em múltiplos lotes**
+  **devolução parcial em múltiplos lotes** e **periféricos avulsos**
+  (mouse, teclado, kit…) digitados com quantidade — sem patrimônio,
+  fora do controle, mas impressos no termo
 - ✉️ **Sistema de solicitações** (entrada em CC, mudança de cargo,
   cessão por Subgestor → Gestor)
 - 🏷️ **Catálogo dinâmico de tipos** — Admin adiciona/desativa tipos
@@ -353,6 +355,26 @@ Detalhes em [backend/README.md](backend/README.md) e
 - Qualquer usuário autenticado pode criar marca/modelo; só Admin
   edita/exclui (`/marcas`, `/modelos`).
 
+### Renomear o código do Centro de Custo
+
+- O código do CC (PK de 4 caracteres) pode ser **editado** por Admin ou
+  Gestor do CC (botão de editar no card em `/centros-de-custo`).
+- A mudança **propaga em cascata** para tudo que referencia o CC:
+  equipamentos, associações usuário-CC, cessões e solicitações. No banco,
+  os FKs usam `ON UPDATE CASCADE`; o service também atualiza as colunas
+  que não são FK (destino de cessões/solicitações).
+- Renomear para um código já existente retorna 409.
+
+### Periféricos avulsos na cessão
+
+- Ao ceder, é possível **digitar periféricos** (mouse, teclado, kit
+  teclado+mouse…) com **quantidade**. Não têm patrimônio e **não entram
+  no controle de inventário** — existem só para constar no **Termo de
+  Responsabilidade**.
+- Funciona tanto no fluxo direto (Admin/TI/Gestor) quanto na
+  **solicitação** do Subgestor: os periféricos viajam na solicitação e
+  são **copiados para a cessão real** na aprovação do Gestor.
+
 ### Cessões com devolução parcial
 
 - Uma cessão pode ter múltiplos lotes de devolução.
@@ -414,8 +436,9 @@ cd backend
 task test
 ```
 
-247 testes (inclui o CRUD de marcas e modelos). Suíte usa SQLite em
-memória via override de dependência.
+254 testes (inclui CRUD de marcas/modelos, rename de CC com propagação
+e periféricos de cessão). Suíte usa SQLite em memória via override de
+dependência.
 
 ---
 

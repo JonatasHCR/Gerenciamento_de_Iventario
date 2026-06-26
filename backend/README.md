@@ -79,6 +79,10 @@ O esquema parte de uma migration inicial consolidada (`8b33ec3fe9f3_initial_sche
 - `b5c9e2f1a8d3` — `tb_marcas` e `tb_modelos`
 - `c7d1a3e9f2b4` — backfill de marcas/modelos a partir de `tb_eletronicos`
 - `d9f2b6c1a4e7` — backfill da descrição dos modelos (descrição mais recente por marca+modelo)
+- `e3a7c8d2f5b9` — `ON UPDATE CASCADE` no FK `centro_custo` das solicitações (habilita rename do CC)
+- `f1b8d4e6a9c2` — `tb_cessao_periferico` (periféricos avulsos da cessão)
+- `a2c5e8b1d4f7` — `tb_modelos.descricao` para `TEXT` (multilinha)
+- `b6e9c3f2a8d1` — `tb_solicitacao_periferico` (periféricos da solicitação de cessão)
 
 ```bash
 alembic revision --autogenerate -m "descrição"   # gera nova migration
@@ -143,8 +147,9 @@ Três tipos (`Solicitacao.tipo`):
 - Aprovar: somente Admin.
 
 **`cessao`** — Subgestor solicita cessão ao Gestor do CC
-- `POST /solicitacoes/cessao` — payload `{ eletronico_ids, responsavel, centro_custo_destino }`
+- `POST /solicitacoes/cessao` — payload `{ eletronico_ids, responsavel, centro_custo_destino, perifericos? }`
 - Solicitante deve ser **Subgestor** do CC dos itens; todos os itens devem ser do **mesmo CC de origem** e estarem `Interno`.
+- Periféricos avulsos opcionais (`tb_solicitacao_periferico`) viajam na solicitação e são **copiados para a `Cessao` real** na aprovação.
 - Aprovar: Admin OU Gestor do CC de origem → cria a `Cessao` automaticamente e marca itens como `Externo`.
 
 Visibilidade no GET:
@@ -166,6 +171,7 @@ Visibilidade no GET:
 | Recurso | Operação | Autorização per-CC |
 |---|---|---|
 | `Contrato` | update/delete do CC X | Admin OU ocupação = `Gestor` em X |
+| `Contrato` | rename do código (PK) | Admin OU `Gestor` em X — propaga p/ eletrônicos, associações, cessões e solicitações (FK `ON UPDATE CASCADE` + updates no service) |
 | `Eletronico` | create no CC X | Admin/TI OU ocupação ∈ {Gestor, Subgestor, Funcionario} em X (Funcionario → auto-associa a si mesmo) |
 | `Eletronico` | update/delete | Admin/TI OU ocupação Gestor/Subgestor no CC do eletrônico OU (Funcionario no CC + dono via associação) |
 | `AssociacaoUserContrato` | create/delete | Admin OU ocupação Gestor no CC (Subgestor pode criar/remover só `Funcionario`); self-removal permitido |
@@ -225,6 +231,7 @@ Histórico persistido de cessões com suporte a **devolução parcial em múltip
 **Modelo:**
 - `Cessao`: `responsavel`, `centro_custo_destino`, `cedido_em`, `cedido_por_id`, `devolvida_em`, `devolvida_por_id` (preenchidos quando o último item retorna).
 - `CessaoEletronico` (N:N): cada linha carrega `devolvido_em`, `devolvida_por_id`, `devolucao_lote` (1, 2, 3… sequencial por cessão) e `gestor_visto_em`.
+- `CessaoPeriferico` (`tb_cessao_periferico`): periféricos avulsos (`nome`, `quantidade`) digitados na cessão — **sem patrimônio, fora do controle de inventário**, só constam no Termo. Aceitos no `POST /cessoes/` via `perifericos: [{nome, quantidade}]` e retornados em `CessaoRead.perifericos`.
 - Status derivado: `ativa` (zero devolvidos), `parcial` (alguns), `devolvida` (todos).
 
 **Endpoints:**
@@ -351,7 +358,8 @@ pytest tests/routers_tests/test_router_users.py -s -x -vv  # arquivo único
 pytest -k "test_create_user" -vv                           # filtro por nome
 ```
 
-**247 testes** (inclui o CRUD de marcas e modelos).
+**254 testes** (inclui CRUD de marcas/modelos, rename de CC com
+propagação e periféricos de cessão/solicitação).
 
 Tests usam SQLite (`aiosqlite`) em memória via override do `EngineApp.get_async_session`. O conftest faz seed automático dos 5 tipos default + desabilita rate-limit. Factories em `tests/conftest.py` (`FactoryUser`, `FactoryEletronico`, `FactoryContrato`).
 
