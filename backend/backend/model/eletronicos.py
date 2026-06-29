@@ -14,7 +14,7 @@ class Eletronico(Base):
     __tablename__ = 'tb_eletronicos'
     __comment__ = 'Tabela de eletrônicos do sistema'
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     numero_serie = Column(String(100), nullable=False, unique=True)
     numero_patrimonio = Column(String(100), nullable=False, unique=True)
     nome = Column(String(255), nullable=False)

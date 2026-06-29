@@ -22,9 +22,8 @@ class Localizacao(Base):
     __tablename__ = 'tb_localizacoes'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nome = Column(
-        String(100), unique=True, nullable=False, index=True
-    )
+    # unique=True já cria índice btree em nome — sem index=True redundante.
+    nome = Column(String(100), unique=True, nullable=False)
     descricao = Column(String(255), nullable=True)
     criado_em = Column(
         DateTime(timezone=True),

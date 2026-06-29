@@ -25,7 +25,7 @@ class AuditLog(Base):
 
     __tablename__ = 'tb_audit_log'
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     # Ex.: 'solicitacao.aprovar', 'cessao.delete', 'user.delete'
     action = Column(String(50), nullable=False, index=True)
     # Quem fez a ação — preservado mesmo se o usuário for excluído depois.

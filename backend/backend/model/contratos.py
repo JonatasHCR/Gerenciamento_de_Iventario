@@ -10,5 +10,5 @@ class Contrato(Base):
     __tablename__ = 'tb_contratos'
     __comment__ = 'Tabela de contratos do sistema'
 
-    centro_custo = Column(String(4), primary_key=True, index=True)
+    centro_custo = Column(String(4), primary_key=True)
     descricao = Column(String(255), nullable=False)

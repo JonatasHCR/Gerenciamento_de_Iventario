@@ -21,7 +21,7 @@ def _now_sp() -> datetime:
 class Cessao(Base):
     __tablename__ = 'tb_cessoes'
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     responsavel = Column(String(255), nullable=False)
     centro_custo_destino = Column(String(4), nullable=False)
     cedido_em = Column(  # noqa: E501

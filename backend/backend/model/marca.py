@@ -25,9 +25,8 @@ class Marca(Base):
     __tablename__ = 'tb_marcas'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nome = Column(
-        String(100), unique=True, nullable=False, index=True
-    )
+    # unique=True já cria índice btree em nome — sem index=True redundante.
+    nome = Column(String(100), unique=True, nullable=False)
     # Sem descrição: a descrição é do modelo, não da marca.
     criado_em = Column(
         DateTime(timezone=True),
