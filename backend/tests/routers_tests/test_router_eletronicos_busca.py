@@ -13,7 +13,7 @@ from backend.model.associacao_user_eletronico import AssociacaoUserEletronico
 from backend.model.contratos import Contrato
 from backend.model.eletronicos import Eletronico
 from backend.model.user import User
-from backend.security.security import Security
+from tests.support import oidc
 
 URL = '/eletronicos/'
 
@@ -25,12 +25,10 @@ def _n():
 
 
 async def _criar_usuario(async_db, nome, tipo='Funcionario'):
-    security = Security()
     senha = 'senha123'
     u = User(
         nome=nome,
         email=f'{nome}@busca.com',
-        senha=security.get_senha_hash(senha),
         tipo=tipo,
     )
     async_db.add(u)
@@ -281,11 +279,7 @@ async def test_funcionario_ve_so_os_proprios(async_client, async_db):
     await _associar_user_eletronico(async_db, func.id, e_meu.id)
     e_alheio = await _criar_eletronico(async_db, 'FUN')
 
-    login = await async_client.post(
-        '/auth/login',
-        data={'username': func.email, 'password': fsenha},
-    )
-    token = login.json()['access_token']
+    token = oidc.cunhar_token(sub=f'sub-{func.email}', email=func.email)
 
     resp = await async_client.get(
         URL,

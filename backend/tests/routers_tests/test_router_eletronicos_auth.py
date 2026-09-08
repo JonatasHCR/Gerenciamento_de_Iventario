@@ -14,7 +14,7 @@ from backend.model.associacao_user_eletronico import AssociacaoUserEletronico
 from backend.model.contratos import Contrato
 from backend.model.eletronicos import Eletronico
 from backend.model.user import User
-from backend.security.security import Security
+from tests.support import oidc
 
 URL = '/eletronicos/'
 URL_USER_ADMIN = '/users/admin'
@@ -28,12 +28,10 @@ def _n():
 
 
 async def _criar_usuario(async_db, nome, tipo='Funcionario'):
-    security = Security()
     senha = 'senha123'
     u = User(
         nome=nome,
         email=f'{nome}@eauth.com',
-        senha=security.get_senha_hash(senha),
         tipo=tipo,
     )
     async_db.add(u)
@@ -42,12 +40,13 @@ async def _criar_usuario(async_db, nome, tipo='Funcionario'):
     return u, senha
 
 
-async def _login(async_client, email, senha):
-    resp = await async_client.post(
-        '/auth/login',
-        data={'username': email, 'password': senha},
-    )
-    return resp.json()['access_token']
+async def _login(async_client, email, senha=None):
+    """Nao ha mais /auth/login: o token vem do Keycloak.
+
+    A assinatura mantem `senha` (agora ignorada) para nao mexer nas
+    dezenas de chamadas espalhadas por este arquivo.
+    """
+    return oidc.cunhar_token(sub=f'sub-{email}', email=email)
 
 
 async def _criar_contrato(async_db, cc):
@@ -315,22 +314,19 @@ async def test_create_user_admin_endpoint_nao_admin_proibido(
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_autoregistro_forca_funcionario(async_client):
-    """POST /users/ público — qualquer tipo enviado vira Funcionario."""
+async def test_autoregistro_publico_nao_existe_mais(async_client):
+    """O `POST /users/` aberto foi removido junto com o SSO.
+
+    Era cadastro sem autenticação: qualquer um na rede criava conta. Agora quem
+    cria identidade é o Keycloak, e a linha local nasce sozinha no primeiro
+    login válido.
+    """
     resp = await async_client.post(
         URL_USER,
-        json={
-            'nome': 'AutoReg',
-            'email': 'autoreg@p.com',
-            'senha': 'senha123',
-            'tipo': 'Admin',  # tentativa de escalar
-        },
+        json={'nome': 'AutoReg', 'email': 'autoreg@p.com', 'tipo': 'Admin'},
     )
 
-    assert resp.status_code == HTTPStatus.CREATED
-    assert resp.json()['tipo'] == 'Funcionario'
-    # senha não vaza
-    assert 'senha' not in resp.json()
+    assert resp.status_code == HTTPStatus.METHOD_NOT_ALLOWED
 
 
 # ─── GET /users/ visibilidade Funcionario só do CC ────────────────────────

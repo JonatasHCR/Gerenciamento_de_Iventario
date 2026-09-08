@@ -1,7 +1,15 @@
 import asyncio
-from http import HTTPStatus
+import os
 from random import choice
 
+# Antes de qualquer import de `backend`: o Settings() é construído em tempo de
+# import de vários módulos. Não há mais SECRET_KEY — os testes cunham tokens
+# RS256 com uma chave própria e trocam o PyJWKClient (ver tests/support/oidc.py).
+os.environ.setdefault('OIDC_ISSUER', 'http://keycloak-de-teste:8080/realms/ufc')
+os.environ.setdefault('OIDC_AUDIENCE', 'inventario-api')
+os.environ.setdefault('OIDC_REQUIRED_GROUP', '/apps/inventario')
+
+import pytest
 import pytest_asyncio
 from factory.base import Factory
 from factory.declarations import LazyAttribute, Sequence
@@ -17,7 +25,8 @@ from backend.model.contratos import Contrato
 from backend.model.eletronicos import Eletronico
 from backend.model.tipo_eletronico import TipoEletronico
 from backend.model.user import User
-from backend.security.security import Security
+from backend.security import dependencies as security_dependencies
+from tests.support import oidc
 
 # Desabilita rate-limit em testes (cada teste faz vários logins).
 limiter.enabled = False
@@ -100,7 +109,6 @@ class FactoryUser(Factory):
 
     nome = Sequence(lambda n: f'Teste{n}')
     email = LazyAttribute(lambda obj: f'{obj.nome}@teste.com')
-    senha = LazyAttribute(lambda obj: f'{obj.nome}123')
     tipo = 'Admin'
 
 
@@ -162,32 +170,35 @@ async def contrato_teste():
     return data
 
 
+@pytest.fixture(autouse=True)
+def _sem_keycloak(monkeypatch):
+    """Troca o cliente de JWKS pelo falso — nenhum teste toca a rede."""
+    monkeypatch.setattr(
+        security_dependencies, '_jwks_client', oidc.JWKClientFalso()
+    )
+
+
 @pytest_asyncio.fixture
 async def login_teste(async_client, async_db, usuario_teste):
-    """
-    Cria o usuário Admin diretamente no banco (bypassando a restrição do
-    endpoint público que força tipo=Funcionario) e retorna o token de acesso.
+    """Usuário Admin autenticado pelo Keycloak.
+
+    Não há mais `/auth/login`: o token é cunhado direto, com a claim `groups`
+    que o backend exige. A linha é inserida com `external_id` já preenchido,
+    então o teste exercita o caminho normal (resolução por external_id) — o
+    caminho de casamento por email tem testes próprios.
     """
     user = usuario_teste
-    security = Security()
+    sub = f'sub-{user["email"]}'
 
-    # Inserir Admin diretamente no banco
     user_db = User(
         nome=user['nome'],
         email=user['email'],
-        senha=security.get_senha_hash(user['senha']),
         tipo=user['tipo'],  # 'Admin'
+        external_id=sub,
     )
     async_db.add(user_db)
     await async_db.commit()
     await async_db.refresh(user_db)
 
-    # Fazer login via API para obter token
-    form_data = {
-        'username': user['email'],
-        'password': user['senha'],
-    }
-    response = await async_client.post('/auth/login', data=form_data)
-    assert response.status_code == HTTPStatus.OK
-
-    return {'token': response.json()['access_token'], 'user': user}
+    token = oidc.cunhar_token(sub=sub, email=user['email'], nome=user['nome'])
+    return {'token': token, 'user': user}

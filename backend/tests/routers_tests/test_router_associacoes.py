@@ -8,7 +8,7 @@ from backend.model.associacao_user_eletronico import AssociacaoUserEletronico
 from backend.model.contratos import Contrato
 from backend.model.eletronicos import Eletronico
 from backend.model.user import User
-from backend.security.security import Security
+from tests.support import oidc
 
 URL_CONTRATO = '/associacoes/contratos'
 URL_ELETRONICO = '/associacoes/eletronicos'
@@ -22,12 +22,10 @@ def _n():
 
 async def _criar_usuario(async_db, tipo='Funcionario'):
     n = _n()
-    security = Security()
     senha = 'senha123'
     u = User(
         nome=f'AssocUser{n}',
         email=f'assoc{n}@test.com',
-        senha=security.get_senha_hash(senha),
         tipo=tipo,
     )
     async_db.add(u)
@@ -36,12 +34,13 @@ async def _criar_usuario(async_db, tipo='Funcionario'):
     return u, senha
 
 
-async def _login(async_client, email, senha):
-    resp = await async_client.post(
-        '/auth/login',
-        data={'username': email, 'password': senha},
-    )
-    return resp.json()['access_token']
+async def _login(async_client, email, senha=None):
+    """Nao ha mais /auth/login: o token vem do Keycloak.
+
+    A assinatura mantem `senha` (agora ignorada) para nao mexer nas
+    dezenas de chamadas espalhadas por este arquivo.
+    """
+    return oidc.cunhar_token(sub=f'sub-{email}', email=email)
 
 
 async def _criar_contrato(async_db, cc=None):

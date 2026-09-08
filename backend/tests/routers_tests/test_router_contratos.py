@@ -5,7 +5,7 @@ import pytest
 
 from backend.model.contratos import Contrato
 from backend.model.user import User
-from backend.security.security import Security
+from tests.support import oidc
 
 URL = '/contratos/'
 
@@ -18,12 +18,10 @@ def _n():
 
 async def _criar_usuario(async_db, tipo='Gestor'):
     n = _n()
-    security = Security()
     senha = 'senha123'
     u = User(
         nome=f'ContUser{n}',
         email=f'cont{n}@test.com',
-        senha=security.get_senha_hash(senha),
         tipo=tipo,
     )
     async_db.add(u)
@@ -32,12 +30,13 @@ async def _criar_usuario(async_db, tipo='Gestor'):
     return u, senha
 
 
-async def _login(async_client, email, senha):
-    resp = await async_client.post(
-        '/auth/login',
-        data={'username': email, 'password': senha},
-    )
-    return resp.json()['access_token']
+async def _login(async_client, email, senha=None):
+    """Nao ha mais /auth/login: o token vem do Keycloak.
+
+    A assinatura mantem `senha` (agora ignorada) para nao mexer nas
+    dezenas de chamadas espalhadas por este arquivo.
+    """
+    return oidc.cunhar_token(sub=f'sub-{email}', email=email)
 
 
 async def _criar_contrato_db(async_db, cc=None):
@@ -250,11 +249,9 @@ async def test_criar_contrato_duplicado_retorna_conflict(
 @pytest.mark.routers
 async def test_funcionario_nao_pode_criar_contrato(async_client, async_db):
     n = _n()
-    security = Security()
     func = User(
         nome=f'Func{n}',
         email=f'func{n}@test.com',
-        senha=security.get_senha_hash('senha123'),
         tipo='Funcionario',
     )
     async_db.add(func)

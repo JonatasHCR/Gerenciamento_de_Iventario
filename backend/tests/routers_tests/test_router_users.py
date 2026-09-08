@@ -7,12 +7,24 @@ URL_USUARIO = '/users/'
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_create_user_duplicate_email(async_client, usuario_teste):
+async def test_create_user_duplicate_email(async_client, login_teste):
+    """Criação por Admin em `/users/admin`.
 
-    response = await async_client.post(URL_USUARIO, json=usuario_teste)
+    O antigo `POST /users/` público não existe mais — quem cria identidade é o
+    Keycloak. Esta rota continua útil para pré-cadastrar alguém já com o papel
+    certo, em vez de esperar o provisionamento (que entra como Funcionario).
+    """
+    headers = {'Authorization': f'Bearer {login_teste["token"]}'}
+    novo = {'nome': 'Duplicado', 'email': 'dup@teste.com', 'tipo': 'Funcionario'}
+
+    response = await async_client.post(
+        f'{URL_USUARIO}admin', json=novo, headers=headers
+    )
     assert response.status_code == HTTPStatus.CREATED
 
-    response = await async_client.post(URL_USUARIO, json=usuario_teste)
+    response = await async_client.post(
+        f'{URL_USUARIO}admin', json=novo, headers=headers
+    )
     assert response.status_code == HTTPStatus.CONFLICT
 
 
@@ -28,7 +40,6 @@ async def test_get_users(async_client, login_teste):
     )
 
     usuario_teste['id'] = response.json()['users'][0]['id']
-    usuario_teste.pop('senha')
 
     assert response.status_code == HTTPStatus.OK
     assert isinstance(response.json()['users'], list)
@@ -51,7 +62,6 @@ async def test_update_user(async_client, login_teste, usuario_teste):
         'id': usuario_id,
         'nome': 'João Souza',
         'email': 'joao.souza@example.com',
-        'senha': 'nova_senha123',
         'tipo': 'Admin',
     }
 
@@ -61,7 +71,6 @@ async def test_update_user(async_client, login_teste, usuario_teste):
         headers={'Authorization': f'Bearer {token_teste}'},
     )
 
-    updated_usuario.pop('senha')
 
     assert response.status_code == HTTPStatus.OK
     assert response.json() == updated_usuario
@@ -82,7 +91,6 @@ async def test_update_user_not_found(async_client, login_teste):
         'id': usuario_id,
         'nome': 'João Souza',
         'email': 'joao.souza@example.com',
-        'senha': 'nova_senha123',
         'tipo': 'Admin',
     }
     response = await async_client.put(
@@ -108,7 +116,6 @@ async def test_delete_user(async_client, login_teste):
     usuario_id = response.json()['users'][0]['id']
 
     usuario_teste['id'] = usuario_id
-    usuario_teste.pop('senha')
 
     response = await async_client.delete(
         f'{URL_USUARIO}{usuario_id}',
