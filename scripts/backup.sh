@@ -12,7 +12,10 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
 log "Iniciando backup: ${DB_NAME}@${DB_HOST:-postgres}"
 
+# --clean/--if-exists embutem os DROP no proprio arquivo: e o que permite
+# restaurar sobre um banco ja povoado usando psql.
 PGPASSWORD="${DB_PASSWORD}" pg_dump \
+  --clean --if-exists --no-owner --no-privileges \
   -h "${DB_HOST:-postgres}" \
   -p "${DB_PORT:-5432}" \
   -U "${DB_USER}" \

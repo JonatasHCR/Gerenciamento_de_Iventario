@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,6 +35,13 @@ NOME_VALIDO = re.compile(r'^[A-Za-z0-9._-]+\.(dump|sql\.gz|sql)$')
 # não conhece. Aceitar o código em bloco daria por boa uma restauração que
 # perdeu tabelas; tolerar pelo nome, não.
 TOLERADOS_NO_RESTORE = ('unrecognized configuration parameter "transaction_timeout"',)
+
+# O mesmo problema, do lado do dump em texto: o pg_dump 17 escreve
+# `SET transaction_timeout` no cabecalho e o servidor 16 nao conhece o
+# parametro. No formato custom o pg_restore apenas avisa; num .sql lido pelo
+# psql com ON_ERROR_STOP a restauracao morreria na primeira linha, entao a
+# linha e retirada do arquivo antes de ele chegar ao psql.
+PREFIXO_INCOMPATIVEL = b'SET transaction_timeout'
 
 
 class ErroDeManutencao(RuntimeError):
@@ -208,10 +216,22 @@ class ManutencaoService:
 
     async def gerar_backup(self) -> Backup:
         DIRETORIO_BACKUPS.mkdir(parents=True, exist_ok=True)
-        nome = f'inventario-{datetime.now().strftime("%Y%m%d-%H%M%S")}.dump'
+        nome = f'inventario-{datetime.now().strftime("%Y%m%d-%H%M%S")}.sql'
         destino = DIRETORIO_BACKUPS / nome
 
-        await self._rodar('pg_dump', '-Fc', *self._conexao(), '-f', str(destino))
+        # Texto puro (formato padrao do pg_dump), o mesmo do sidecar e do
+        # scripts/backup.sh — um so formato para as tres origens.
+        # --clean/--if-exists embutem os DROP no proprio arquivo, que e o que
+        # torna a restauracao sobre um banco povoado possivel com psql.
+        await self._rodar(
+            'pg_dump',
+            '--clean',
+            '--if-exists',
+            '--no-owner',
+            '--no-privileges',
+            *self._conexao(),
+            '-f', str(destino),
+        )
 
         if not destino.is_file() or destino.stat().st_size == 0:
             raise ErroDeManutencao('O pg_dump terminou mas não gerou arquivo.')
@@ -230,17 +250,52 @@ class ManutencaoService:
         # conexão presa vira deadlock.
         await self.session.close()
 
-        await self._rodar(
-            'pg_restore',
-            '--clean',
-            '--if-exists',
-            '--no-owner',
-            '--no-privileges',
-            *self._conexao(),
-            str(arquivo),
-            tolerar=TOLERADOS_NO_RESTORE,
-        )
+        # Os backups novos sao .sql; os .dump antigos continuam restauraveis
+        # para nao inutilizar o que ja esta na pasta.
+        if arquivo.suffix == '.dump':
+            await self._rodar(
+                'pg_restore',
+                '--clean',
+                '--if-exists',
+                '--no-owner',
+                '--no-privileges',
+                *self._conexao(),
+                str(arquivo),
+                tolerar=TOLERADOS_NO_RESTORE,
+            )
+        else:
+            await self._restaurar_sql(arquivo)
+
         return arquivo.name
+
+    async def _restaurar_sql(self, arquivo: Path) -> None:
+        """Aplica um dump em texto com psql, abortando no primeiro erro."""
+        limpo = await asyncio.to_thread(self._sem_linhas_incompativeis, arquivo)
+        try:
+            # ON_ERROR_STOP=1: sem isto o psql segue apos um erro e devolveria
+            # codigo 0 depois de restaurar pela metade.
+            await self._rodar(
+                'psql',
+                '-v', 'ON_ERROR_STOP=1',
+                '-q',
+                *self._conexao(),
+                '-f', str(limpo),
+            )
+        finally:
+            limpo.unlink(missing_ok=True)
+
+    @staticmethod
+    def _sem_linhas_incompativeis(arquivo: Path) -> Path:
+        """Copia o dump sem as linhas que o servidor nao entende."""
+        with tempfile.NamedTemporaryFile(
+            'wb', suffix='.sql', delete=False
+        ) as destino:
+            with arquivo.open('rb') as fonte:
+                for linha in fonte:
+                    if linha.lstrip().startswith(PREFIXO_INCOMPATIVEL):
+                        continue
+                    destino.write(linha)
+            return Path(destino.name)
 
     async def limpar(
         self, alvo: str, centro_custo: str | None = None
