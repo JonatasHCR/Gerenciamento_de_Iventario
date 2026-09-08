@@ -1,8 +1,23 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
+import { lerSessao } from '@/lib/session'
+
+/**
+ * Proxy do navegador para o FastAPI.
+ *
+ * Já existia, mas apenas repassava adiante o `Authorization` que o navegador
+ * mandava. Agora o header é montado AQUI, a partir do cookie de sessão cifrado:
+ * o token nunca chega ao navegador, então um XSS não rouba credencial de API.
+ */
+
 const BACKEND = process.env.API_URL ?? 'http://localhost:8000'
 
 async function proxy(req: NextRequest): Promise<NextResponse> {
+  const sessao = await lerSessao(req.cookies)
+  if (!sessao?.access_token) {
+    return NextResponse.json({ detail: 'Sessão expirada' }, { status: 401 })
+  }
+
   const backendPath = req.nextUrl.pathname.replace(/^\/api/, '')
   const url = `${BACKEND}${backendPath}${req.nextUrl.search}`
 
@@ -10,13 +25,19 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
   headers.delete('host')
   headers.delete('connection')
   headers.delete('content-length')
+  // O cookie de sessão é assunto deste servidor; mandá-lo adiante só vazaria a
+  // sessão para dentro da rede.
+  headers.delete('cookie')
+  headers.set('Authorization', `Bearer ${sessao.access_token}`)
 
   const isBodyless = ['GET', 'HEAD', 'DELETE'].includes(req.method)
 
   const upstream = await fetch(url, {
     method: req.method,
     headers,
-    body: isBodyless ? undefined : await req.text(),
+    // arrayBuffer(), não text(): `text()` decodifica como UTF-8 e corrompe
+    // qualquer upload binário (planilhas, anexos).
+    body: isBodyless ? undefined : await req.arrayBuffer(),
     redirect: 'follow',
   })
 

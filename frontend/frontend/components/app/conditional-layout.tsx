@@ -1,24 +1,16 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
 import { Sidebar } from './sidebar'
 import { Topbar } from './topbar'
 import { useAuth } from '@/context/auth-context'
 
-const AUTH_PATHS = ['/login', '/cadastro']
-
+/**
+ * O ramo que centralizava as páginas `/login` e `/cadastro` foi removido junto
+ * com elas: a tela de senha agora é do Keycloak, e o middleware garante que
+ * nada aqui renderiza sem sessão. Toda rota que chega tem barra lateral.
+ */
 export function ConditionalLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
   const { isLoading } = useAuth()
-  const isAuth = AUTH_PATHS.some((p) => pathname.startsWith(p))
-
-  if (isAuth) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
-        {children}
-      </div>
-    )
-  }
 
   if (isLoading) return null
 

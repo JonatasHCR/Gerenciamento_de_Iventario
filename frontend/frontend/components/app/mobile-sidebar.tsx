@@ -18,8 +18,10 @@ import {
   Factory,
   Boxes,
   History,
+  Settings,
 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
+import { TrocarSistema } from './trocar-sistema'
 import { getSolicitacoes } from '@/lib/api/solicitacoes'
 import { getRecebimentosPendentesGestor } from '@/lib/api/cessoes'
 import { getAssociacoesContrato } from '@/lib/api/associacoes'
@@ -161,6 +163,20 @@ export function MobileSidebar() {
               <p className="truncate text-sm font-medium">{user.nome}</p>
               <p className="text-xs text-muted-foreground">{user.tipo}</p>
             </div>
+            {user?.tipo === 'Admin' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-muted-foreground hover:text-foreground"
+                asChild onClick={() => setOpen(false)}
+              >
+                <Link href="/administracao">
+                  <Settings className="h-4 w-4" />
+                  <span className="ml-2">Administração</span>
+                </Link>
+              </Button>
+            )}
+            <TrocarSistema />
             <Button
               variant="ghost"
               size="sm"

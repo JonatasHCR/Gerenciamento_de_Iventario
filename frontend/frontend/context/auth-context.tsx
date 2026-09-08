@@ -1,76 +1,58 @@
 'use client'
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import type { User } from '@/types/api'
-import { apiLogin } from '@/lib/api/auth'
-import { getUsers } from '@/lib/api/users'
-import { getCookie, setCookie, deleteCookie, decodeJwt } from '@/lib/utils'
-import { ApiError } from '@/lib/api/client'
-
-export const TOKEN_COOKIE = 'invcontrol_token'
 
 interface AuthContextValue {
   user: User | null
   isLoading: boolean
-  login: (email: string, senha: string) => Promise<void>
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+/**
+ * Quem está logado, vindo do servidor.
+ *
+ * Antes isto decodificava o JWT no navegador, lia o `sub` esperando um email e
+ * procurava esse email na LISTA COMPLETA de usuários — a cada 10 segundos, para
+ * sempre. Com o padrão BFF o token não chega ao navegador, e `/api/auth/me`
+ * responde a mesma pergunta com uma requisição só.
+ *
+ * Não há mais `login()`: quem pede a senha é o Keycloak. Quem não tem sessão
+ * nem chega aqui, porque o middleware barra antes no servidor.
+ */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const loadUser = useCallback(async (isInitial: boolean) => {
-    const token = getCookie(TOKEN_COOKIE)
-    if (!token) {
-      if (isInitial) setIsLoading(false)
-      return
-    }
-    try {
-      const payload = decodeJwt(token)
-      const email = payload?.sub as string | undefined
-      if (!email) throw new ApiError(401, 'Token inválido')
-      const users = await getUsers()
-      setUser(users.find((u) => u.email === email) ?? null)
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        deleteCookie(TOKEN_COOKIE)
-        setUser(null)
-      }
-    } finally {
-      if (isInitial) setIsLoading(false)
+  useEffect(() => {
+    let cancelado = false
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelado) setUser(data)
+      })
+      .catch(() => {
+        if (!cancelado) setUser(null)
+      })
+      .finally(() => {
+        if (!cancelado) setIsLoading(false)
+      })
+    return () => {
+      cancelado = true
     }
   }, [])
 
-  useEffect(() => {
-    loadUser(true)
-    const id = setInterval(() => loadUser(false), 10000)
-    return () => clearInterval(id)
-  }, [loadUser])
-
-  async function login(email: string, senha: string) {
-    const data = await apiLogin(email, senha)
-    setCookie(TOKEN_COOKIE, data.access_token, 7)
-    const users = await getUsers()
-    setUser(users.find((u) => u.email === email) ?? null)
-  }
-
   function logout() {
-    deleteCookie(TOKEN_COOKIE)
-    setUser(null)
-    window.location.href = '/login'
+    // Logout RP-initiated: encerra a sessão no Keycloak também, deslogando dos
+    // três sistemas. Apagar só o cookie daqui deixaria o próximo acesso entrar
+    // direto, sem pedir senha.
+    window.location.href = '/api/auth/logout'
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, logout }}>
       {children}
     </AuthContext.Provider>
   )

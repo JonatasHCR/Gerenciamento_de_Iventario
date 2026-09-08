@@ -23,7 +23,7 @@ class Cessao(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     responsavel = Column(String(255), nullable=False)
-    centro_custo_destino = Column(String(4), nullable=False)
+    centro_custo_destino = Column(String(20), nullable=False)
     cedido_em = Column(  # noqa: E501
         DateTime(timezone=True), nullable=False, default=_now_sp,
     )

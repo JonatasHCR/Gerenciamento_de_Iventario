@@ -43,3 +43,10 @@ htmlcov/
 ### Backups ###
 backups/*
 !backups/.gitkeep
+
+### Build do Next ###
+# Artefatos gerados por `next build`/`next dev`. Entravam no commit porque o
+# frontend nao tinha .gitignore proprio.
+.next/
+next-env.d.ts
+*.tsbuildinfo

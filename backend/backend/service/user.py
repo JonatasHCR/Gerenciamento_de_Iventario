@@ -4,28 +4,16 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.core.settings import Settings
 from backend.model.associacao_user_contrato import AssociacaoUserContrato
 from backend.model.user import User
 from backend.schemas.user import UserCreate, UserUpdate
 from backend.security.dependencies import UserContext
-from backend.security.security import Security
 from backend.service.audit_log import log as audit_log
-
-
-def _allowed_email_domains() -> set[str]:
-    raw = Settings().ALLOWED_EMAIL_DOMAINS
-    return {
-        d.strip().lower().lstrip('@')
-        for d in raw.split(',')
-        if d.strip()
-    }
 
 
 class UserService:
     def __init__(self, session: AsyncSession):
         self.session = session
-        self.security = Security()
 
     async def get_users(self, ctx: UserContext):
         """
@@ -62,28 +50,13 @@ class UserService:
                 status_code=HTTPStatus.CONFLICT,
                 detail='Usuário com este email já existe.',
             )
+        # Sem senha: quem guarda credencial é o Keycloak. A pessoa criada aqui
+        # só entra depois de existir também no realm, no grupo do inventário.
         novo = User(**user.model_dump())
-        novo.senha = self.security.get_senha_hash(novo.senha)
         self.session.add(novo)
         await self.session.commit()
         await self.session.refresh(novo)
         return novo
-
-    async def create_auto_registro(self, user: UserCreate) -> User:
-        """Auto-registro público: sempre cria como Funcionario."""
-        user = user.model_copy(update={'tipo': 'Funcionario'})
-        allowed = _allowed_email_domains()
-        if allowed:
-            dom = user.email.split('@', 1)[1].lower()
-            if dom not in allowed:
-                raise HTTPException(
-                    status_code=HTTPStatus.FORBIDDEN,
-                    detail=(
-                        f'Auto-registro restrito a emails dos '
-                        f'domínios: {", ".join(sorted(allowed))}.'
-                    ),
-                )
-        return await self._save_user(user)
 
     async def create_admin(self, user: UserCreate, ctx: UserContext) -> User:
         """Criação pelo Admin: permite qualquer tipo."""
@@ -121,11 +94,6 @@ class UserService:
         # Usuários não-privilegiados não podem alterar o próprio tipo
         if not ctx.is_privileged:
             data.pop('tipo', None)
-
-        if data.get('senha'):
-            data['senha'] = self.security.get_senha_hash(data['senha'])
-        else:
-            data.pop('senha', None)
 
         tipo_antes = user_db.tipo
         for key, value in data.items():

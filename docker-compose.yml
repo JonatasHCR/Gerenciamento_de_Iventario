@@ -19,8 +19,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "${BACKEND_PORT:-8000}:8000"
+    # A porta do backend NAO e mais publicada no host: o unico que fala com ele
+    # e o servidor Next, por dentro da rede do Docker (API_URL abaixo). Expor
+    # so daria uma porta de entrada que ninguem usa.
     environment:
       ENGINE_ASYNC: postgresql+asyncpg
       ENGINE_SYNC: postgresql+psycopg2
@@ -29,16 +30,32 @@ services:
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_NAME: ${POSTGRES_DB}
-      SECRET_KEY: ${SECRET_KEY:?defina SECRET_KEY no .env}
-      ALGORITHM: ${ALGORITHM:-HS256}
-      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      # Nao ha mais segredo de assinatura: quem emite token e o Keycloak e aqui
+      # so validamos, com a chave publica dele.
+      OIDC_ISSUER: http://${HOST_IP:?defina HOST_IP no .env}:8080/realms/ufc
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-inventario-api}
+      OIDC_REQUIRED_GROUP: ${OIDC_REQUIRED_GROUP:-/apps/inventario}
+      # A conta mestra: UM email, o mesmo nos tres sistemas, que entra como
+      # admin aqui sem depender de grupo nem de script de promocao.
+      ADMIN_MESTRE_EMAIL: ${ADMIN_MESTRE_EMAIL:-}
+      # Mesmo diretorio do sidecar de backup: os agendados e os feitos pelo
+      # botao caem na mesma lista, e o scripts/restore.sh serve para os dois.
+      BACKUP_DIR: /backups
       DEBUG: ${DEBUG:-false}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
-      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10/minute}
-      ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-}
+    volumes:
+      - ./backups:/backups
     depends_on:
       postgres:
         condition: service_healthy
+    # O CMD roda `alembic upgrade head` antes do uvicorn, entao "saudavel" aqui
+    # significa "schema migrado" — e o container de sync depende disso.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/openapi.json')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
     restart: unless-stopped
 
   frontend:
@@ -49,8 +66,77 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
       API_URL: http://backend:8000
+      HOST_IP: ${HOST_IP}
+      PORTA_PUBLICA: ${FRONTEND_PORT:-3000}
+      # As portas dos outros sistemas, para o seletor "Sistemas" montar os links.
+      # Vem do ambiente pelo mesmo motivo que o IP: um NEXT_PUBLIC_* seria assado
+      # na imagem em tempo de build e traria o IP de volta para os artefatos.
+      PORTAL_PORT: ${PORTAL_PORT:-3080}
+      INVENTARIO_PORT: ${INVENTARIO_PORT:-3030}
+      RECEITA_PORT: ${RECEITA_PORT:-3040}
+      DESPESA_PORT: ${DESPESA_PORT:-3010}
+      OIDC_CLIENT_ID: inventario-web
+      OIDC_CLIENT_SECRET: ${INVENTARIO_CLIENT_SECRET:?defina INVENTARIO_CLIENT_SECRET no .env}
+      SESSION_SECRET: ${INVENTARIO_SESSION_SECRET:?defina INVENTARIO_SESSION_SECRET no .env}
+      # O limite padrao de header do Node e 16 KB. Como cookie nao distingue
+      # porta e os quatro apps vivem no mesmo host, o navegador manda os cookies
+      # de todos para cada um — e o header estoura no quarto login, com um 431
+      # que derruba tudo de uma vez. As sessoes ja foram enxugadas; isto e a
+      # folga para o dia em que entrar um quinto sistema.
+      NODE_OPTIONS: "--max-http-header-size=65536"
     depends_on:
       - backend
+    restart: unless-stopped
+
+  # --- Sincronizacao com a receita --------------------------------------
+  # Puxa os centros de custo a cada SYNC_INTERVAL_MINUTES (padrao: 15).
+  #
+  # Container proprio, e nao um scheduler dentro do FastAPI, pelo mesmo motivo
+  # do db-backup: um agendador in-process multiplicaria com replicas, e duas
+  # instancias sincronizando o mesmo dado ao mesmo tempo e problema garantido.
+  #
+  # Manual (primeira carga, ou para depurar):
+  #   docker compose run --rm sync python sync_receita.py
+  sync:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      ENGINE_ASYNC: postgresql+asyncpg
+      ENGINE_SYNC: postgresql+psycopg2
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB}
+      OIDC_ISSUER: http://${HOST_IP}:8080/realms/ufc
+      # A receita e alcancada pelo IP do host: os composes sao separados, entao
+      # os containers nao compartilham rede.
+      RECEITA_API_URL: ${RECEITA_API_URL:-http://${HOST_IP}:${RECEITA_PORT:-3040}}
+      RECEITA_API_TOKEN: ${RECEITA_API_TOKEN:?defina RECEITA_API_TOKEN no .env (e o SYNC_API_TOKEN da receita)}
+      SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-15}
+    # `command`, e nao `entrypoint`: com entrypoint o
+    # `docker compose run --rm sync python sync_receita.py` viraria ARGUMENTO do
+    # laco infinito, e a execucao manual (primeira carga, depuracao) travaria.
+    command:
+      - /bin/sh
+      - -c
+      - |
+        INTERVALO=$$(( $${SYNC_INTERVAL_MINUTES:-15} * 60 ))
+        echo "[sync] a cada $${SYNC_INTERVAL_MINUTES:-15} min"
+        while true; do
+          python sync_receita.py || echo "[sync] falhou; tentando de novo no proximo ciclo"
+          sleep "$$INTERVALO"
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Espera o backend ficar saudavel, e nao so o Postgres: e o CMD dele que
+      # roda `alembic upgrade head`. Sem isto o primeiro sync corre contra a
+      # migracao e falha com "column tb_contratos.sincronizado_em does not
+      # exist" — depois se recupera sozinho, mas so no ciclo seguinte.
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   # --- Backup -----------------------------------------------------------

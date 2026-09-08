@@ -14,10 +14,13 @@ dependencies = [
     "pydantic-settings (>=2.14.0,<3.0.0)",
     "alembic (>=1.18.4,<2.0.0)",
     "pydantic (>=2.13.3,<3.0.0)",
-    "pwdlib[argon2] (>=0.3.0,<0.4.0)",
-    "pyjwt (>=2.12.1,<3.0.0)",
+    "pyjwt[crypto] (>=2.12.1,<3.0.0)",
     "tzdata (>=2026.2,<2027.0)",
     "slowapi (>=0.1.9,<0.2.0)",
+    # Cliente HTTP do sync com a receita. Estava so no grupo dev (os testes o
+    # usam), e a imagem de producao instala --without dev — o container de sync
+    # subiria sem ele.
+    "httpx (>=0.28.1,<0.29.0)",
 ]
 
 

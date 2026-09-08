@@ -26,7 +26,7 @@ class Eletronico(Base):
     ip = Column(String(15))
     localizacao = Column(String(255))
     descricao = Column(Text)
-    centro_custo = Column(String(4), nullable=False, index=True)
+    centro_custo = Column(String(20), nullable=False, index=True)
 
     __table_args__ = (
         ForeignKeyConstraint(

@@ -79,63 +79,6 @@ idna = ">=2.8"
 trio = ["trio (>=0.32.0)"]
 
 [[package]]
-name = "argon2-cffi"
-version = "25.1.0"
-description = "Argon2 for Python"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "argon2_cffi-25.1.0-py3-none-any.whl", hash = "sha256:fdc8b074db390fccb6eb4a3604ae7231f219aa669a2652e0f20e16ba513d5741"},
-    {file = "argon2_cffi-25.1.0.tar.gz", hash = "sha256:694ae5cc8a42f4c4e2bf2ca0e64e51e23a040c6a517a85074683d3959e1346c1"},
-]
-
-[package.dependencies]
-argon2-cffi-bindings = "*"
-
-[[package]]
-name = "argon2-cffi-bindings"
-version = "25.1.0"
-description = "Low-level CFFI bindings for Argon2"
-optional = false
-python-versions = ">=3.9"
-groups = ["main"]
-files = [
-    {file = "argon2_cffi_bindings-25.1.0-cp314-cp314t-macosx_10_13_universal2.whl", hash = "sha256:3d3f05610594151994ca9ccb3c771115bdb4daef161976a266f0dd8aa9996b8f"},
-    {file = "argon2_cffi_bindings-25.1.0-cp314-cp314t-macosx_10_13_x86_64.whl", hash = "sha256:8b8efee945193e667a396cbc7b4fb7d357297d6234d30a489905d96caabde56b"},
-    {file = "argon2_cffi_bindings-25.1.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:3c6702abc36bf3ccba3f802b799505def420a1b7039862014a65db3205967f5a"},
-    {file = "argon2_cffi_bindings-25.1.0-cp314-cp314t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:a1c70058c6ab1e352304ac7e3b52554daadacd8d453c1752e547c76e9c99ac44"},
-    {file = "argon2_cffi_bindings-25.1.0-cp314-cp314t-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e2fd3bfbff3c5d74fef31a722f729bf93500910db650c925c2d6ef879a7e51cb"},
-    {file = "argon2_cffi_bindings-25.1.0-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:c4f9665de60b1b0e99bcd6be4f17d90339698ce954cfd8d9cf4f91c995165a92"},
-    {file = "argon2_cffi_bindings-25.1.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:ba92837e4a9aa6a508c8d2d7883ed5a8f6c308c89a4790e1e447a220deb79a85"},
-    {file = "argon2_cffi_bindings-25.1.0-cp314-cp314t-win32.whl", hash = "sha256:84a461d4d84ae1295871329b346a97f68eade8c53b6ed9a7ca2d7467f3c8ff6f"},
-    {file = "argon2_cffi_bindings-25.1.0-cp314-cp314t-win_amd64.whl", hash = "sha256:b55aec3565b65f56455eebc9b9f34130440404f27fe21c3b375bf1ea4d8fbae6"},
-    {file = "argon2_cffi_bindings-25.1.0-cp314-cp314t-win_arm64.whl", hash = "sha256:87c33a52407e4c41f3b70a9c2d3f6056d88b10dad7695be708c5021673f55623"},
-    {file = "argon2_cffi_bindings-25.1.0-cp39-abi3-macosx_10_9_universal2.whl", hash = "sha256:aecba1723ae35330a008418a91ea6cfcedf6d31e5fbaa056a166462ff066d500"},
-    {file = "argon2_cffi_bindings-25.1.0-cp39-abi3-macosx_10_9_x86_64.whl", hash = "sha256:2630b6240b495dfab90aebe159ff784d08ea999aa4b0d17efa734055a07d2f44"},
-    {file = "argon2_cffi_bindings-25.1.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:7aef0c91e2c0fbca6fc68e7555aa60ef7008a739cbe045541e438373bc54d2b0"},
-    {file = "argon2_cffi_bindings-25.1.0-cp39-abi3-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:1e021e87faa76ae0d413b619fe2b65ab9a037f24c60a1e6cc43457ae20de6dc6"},
-    {file = "argon2_cffi_bindings-25.1.0-cp39-abi3-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d3e924cfc503018a714f94a49a149fdc0b644eaead5d1f089330399134fa028a"},
-    {file = "argon2_cffi_bindings-25.1.0-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:c87b72589133f0346a1cb8d5ecca4b933e3c9b64656c9d175270a000e73b288d"},
-    {file = "argon2_cffi_bindings-25.1.0-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:1db89609c06afa1a214a69a462ea741cf735b29a57530478c06eb81dd403de99"},
-    {file = "argon2_cffi_bindings-25.1.0-cp39-abi3-win32.whl", hash = "sha256:473bcb5f82924b1becbb637b63303ec8d10e84c8d241119419897a26116515d2"},
-    {file = "argon2_cffi_bindings-25.1.0-cp39-abi3-win_amd64.whl", hash = "sha256:a98cd7d17e9f7ce244c0803cad3c23a7d379c301ba618a5fa76a67d116618b98"},
-    {file = "argon2_cffi_bindings-25.1.0-cp39-abi3-win_arm64.whl", hash = "sha256:b0fdbcf513833809c882823f98dc2f931cf659d9a1429616ac3adebb49f5db94"},
-    {file = "argon2_cffi_bindings-25.1.0-pp310-pypy310_pp73-macosx_10_15_x86_64.whl", hash = "sha256:6dca33a9859abf613e22733131fc9194091c1fa7cb3e131c143056b4856aa47e"},
-    {file = "argon2_cffi_bindings-25.1.0-pp310-pypy310_pp73-macosx_11_0_arm64.whl", hash = "sha256:21378b40e1b8d1655dd5310c84a40fc19a9aa5e6366e835ceb8576bf0fea716d"},
-    {file = "argon2_cffi_bindings-25.1.0-pp310-pypy310_pp73-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:5d588dec224e2a83edbdc785a5e6f3c6cd736f46bfd4b441bbb5aa1f5085e584"},
-    {file = "argon2_cffi_bindings-25.1.0-pp310-pypy310_pp73-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:5acb4e41090d53f17ca1110c3427f0a130f944b896fc8c83973219c97f57b690"},
-    {file = "argon2_cffi_bindings-25.1.0-pp310-pypy310_pp73-win_amd64.whl", hash = "sha256:da0c79c23a63723aa5d782250fbf51b768abca630285262fb5144ba5ae01e520"},
-    {file = "argon2_cffi_bindings-25.1.0.tar.gz", hash = "sha256:b957f3e6ea4d55d820e40ff76f450952807013d361a65d7f28acc0acbf29229d"},
-]
-
-[package.dependencies]
-cffi = [
-    {version = ">=1.0.1", markers = "python_version < \"3.14\""},
-    {version = ">=2.0.0b1", markers = "python_version >= \"3.14\""},
-]
-
-[[package]]
 name = "asgi-lifespan"
 version = "2.1.0"
 description = "Programmatic startup/shutdown of ASGI apps."
@@ -239,6 +182,7 @@ description = "Foreign Function Interface for Python calling C code."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
+markers = "platform_python_implementation != \"PyPy\""
 files = [
     {file = "cffi-2.0.0-cp310-cp310-macosx_10_13_x86_64.whl", hash = "sha256:0cf2d91ecc3fcc0625c2c530fe004f82c110405f101548512cce44322fa8ac44"},
     {file = "cffi-2.0.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:f73b96c41e3b2adedc34a7356e64c8eb96e03a3782b535e043a986276ce12a49"},
@@ -475,6 +419,68 @@ files = [
 
 [package.extras]
 toml = ["tomli ; python_full_version <= \"3.11.0a6\""]
+
+[[package]]
+name = "cryptography"
+version = "50.0.1"
+description = "cryptography is a package which provides cryptographic recipes and primitives to Python developers."
+optional = false
+python-versions = "!=3.9.0,!=3.9.1,>=3.9"
+groups = ["main"]
+files = [
+    {file = "cryptography-50.0.1-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:b8f852c65863251b9e3a1b8c150ce21e59b522dbb6a7d4bc80e680d38388e986"},
+    {file = "cryptography-50.0.1-cp311-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:53e279950892dc102c6b4e52af03ae5ea92fac572a1ddab78ca73a997f62b69f"},
+    {file = "cryptography-50.0.1-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:ff838d62ec1bfce4f9ba7fa16f4a7b554cd8d0c299e6be37502161a660c84eef"},
+    {file = "cryptography-50.0.1-cp311-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:e74591e283fe6eb956416c929eb58262a719fe0311fd9054c62c3350ed8760d8"},
+    {file = "cryptography-50.0.1-cp311-abi3-manylinux_2_28_ppc64le.whl", hash = "sha256:5fe002589592ed749ce77fe0695fcbd3500dd61d7d6db5858a7544c612fa8e45"},
+    {file = "cryptography-50.0.1-cp311-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:51593d180cf6d179bde5c5d065bed81386b1f381656ae7d042b7ffc87a9895ad"},
+    {file = "cryptography-50.0.1-cp311-abi3-manylinux_2_31_armv7l.whl", hash = "sha256:359e62deae718bce96170e223fdcb6357e4fbd3bb7a3a75f4430763532560e49"},
+    {file = "cryptography-50.0.1-cp311-abi3-manylinux_2_34_aarch64.whl", hash = "sha256:e2ca8fd1b6b4b82a1c4cb02841d0837e3c12336c2e24b520ab8ab3b969733d8f"},
+    {file = "cryptography-50.0.1-cp311-abi3-manylinux_2_34_ppc64le.whl", hash = "sha256:76de83fbd91ac49c0feaaa983d0748fd7a53176afac5fb3bf7478d244f0eb527"},
+    {file = "cryptography-50.0.1-cp311-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:51afcfceb15597cf2635068e4ac9a56b2abde622edde17f37d85fd7b5306497a"},
+    {file = "cryptography-50.0.1-cp311-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:be224a65493ec5b74a158ff22a5522ce4a5ca1e543c647a3a4730d4a09e5f959"},
+    {file = "cryptography-50.0.1-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:9ebcdd5519be9b652a46f507817a74591774fc3d6923ac364e4dfa64e36b291b"},
+    {file = "cryptography-50.0.1-cp311-abi3-win_amd64.whl", hash = "sha256:aed8db4f6d71c51efb89530e12d9464e7bf2923d46c3205dc794a2a93f8c0648"},
+    {file = "cryptography-50.0.1-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:30a125032e5642a21ff816e021152bd4e7e94f03eff3f4b7fca41cd22bc3110f"},
+    {file = "cryptography-50.0.1-cp314-cp314t-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:a0b1a59e3a089064a0ec309e9428c8e3ae4e161419d20ac33600767e83fc658a"},
+    {file = "cryptography-50.0.1-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:8921d58f426793c5f1b47f0b59575780de9a095214958d0eb37d909593db8367"},
+    {file = "cryptography-50.0.1-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:a8f40ea47330e71b594a7e246898f93177c259490c63183dbaf9e571d71ed9a5"},
+    {file = "cryptography-50.0.1-cp314-cp314t-manylinux_2_28_ppc64le.whl", hash = "sha256:a255449073358275b64b67d3f595f268bbef70e72b6edb65e0c70c735bf739c9"},
+    {file = "cryptography-50.0.1-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:8df2de9102026855887e4587084f6eabd80ed0f345b8ad8a7ac27ab9bf4723e0"},
+    {file = "cryptography-50.0.1-cp314-cp314t-manylinux_2_31_armv7l.whl", hash = "sha256:ac02b07824d4d1001bd4367599f839c19cb171924c796e52c23508ac14c2c0cc"},
+    {file = "cryptography-50.0.1-cp314-cp314t-manylinux_2_34_aarch64.whl", hash = "sha256:cbf74a81765ee67413503ca6e26dcc4f6f5a519822436cc0a1b97aab6c1b8a17"},
+    {file = "cryptography-50.0.1-cp314-cp314t-manylinux_2_34_ppc64le.whl", hash = "sha256:16c5ecd954b3330ebfb6605eca4fd952da8bef376551d5cc264534e3770a9ee6"},
+    {file = "cryptography-50.0.1-cp314-cp314t-manylinux_2_34_x86_64.whl", hash = "sha256:79bf008d1f9af6071c797ad133e39915dfee7614f18f18f4db9072eb715064a3"},
+    {file = "cryptography-50.0.1-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:330fbb252391c596f1ae42c5754449dc924e6ad012dca8efe0d703f9f2d12ec6"},
+    {file = "cryptography-50.0.1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:42be3bb70596b3abe4ac097b75be223e8b3ab614a0e5de068e3dcc54d71d6149"},
+    {file = "cryptography-50.0.1-cp314-cp314t-win_amd64.whl", hash = "sha256:f74455bb086a85d5e81246412602aaa97ed095e504cd40dd261ef50be42205bf"},
+    {file = "cryptography-50.0.1-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:ca83d00d9e69cd5eb63f2e69c3a5a59e0cecae5ae14c6ae0b35830fe3b37bad0"},
+    {file = "cryptography-50.0.1-cp39-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:05ba322c4da95b262a212c345af888ef2c37c88c0509756ea00a0e6d68850f23"},
+    {file = "cryptography-50.0.1-cp39-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:e22dfed744bd4002e909464cb23d2f0b05c6f3113a79ef2e9864a53db737c733"},
+    {file = "cryptography-50.0.1-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:4c4188f7c0cf655be5c06342b817ed0f9595b69ffa2b12026e5353eed29dea88"},
+    {file = "cryptography-50.0.1-cp39-abi3-manylinux_2_28_ppc64le.whl", hash = "sha256:2ebbfb0f1fed745e91796e3e1080a1440423fdae8ece1b995a1d80883a409054"},
+    {file = "cryptography-50.0.1-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:407fe2b6db00939c05c0e945e9914238f2f0a430974839429dafc82b1ee6bee5"},
+    {file = "cryptography-50.0.1-cp39-abi3-manylinux_2_31_armv7l.whl", hash = "sha256:2b34d76a652ea2b6faf777c35df230c5637842cd904e04f16230c3f9f03e4361"},
+    {file = "cryptography-50.0.1-cp39-abi3-manylinux_2_34_aarch64.whl", hash = "sha256:01f41478cf33fc605a6a089cd56d28b45c6c0b45a1928b61797f2621a04bac71"},
+    {file = "cryptography-50.0.1-cp39-abi3-manylinux_2_34_ppc64le.whl", hash = "sha256:fc3ed7ebd2a8c96f5b166de0ab9b624996bef3b07bbeb19364dfb78222c22c80"},
+    {file = "cryptography-50.0.1-cp39-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:9dde0a357190eb3b1da1bb9ab750e9c85cba82ca5977aa0836cbb94e92611239"},
+    {file = "cryptography-50.0.1-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:fd3718b960d0b5dd213cdf03f3bcb7000e69dda0de8b956061947ff6bcff5558"},
+    {file = "cryptography-50.0.1-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:2a93d05e34d5f67fba6f891fe85d929999baa7195e853923ea6d7576c9e68c5e"},
+    {file = "cryptography-50.0.1-cp39-abi3-win_amd64.whl", hash = "sha256:55d16b1ef3ee0958d893a977b19777887e546c9954ea81b200c3301a864013f2"},
+    {file = "cryptography-50.0.1-pp311-pypy311_pp73-macosx_11_0_arm64.whl", hash = "sha256:9cb3cb952cf5a8abd50c782a98a89d71699715e802fe349704b47f2425b42a94"},
+    {file = "cryptography-50.0.1-pp311-pypy311_pp73-manylinux_2_28_aarch64.whl", hash = "sha256:5fe939deeb161024a6be98229c953b6591fef1f41214497a78fe793a244c017f"},
+    {file = "cryptography-50.0.1-pp311-pypy311_pp73-manylinux_2_28_x86_64.whl", hash = "sha256:fb4b9672d389c738b175c4166e78310f8a70358886aacd9173ee03a85ffdc671"},
+    {file = "cryptography-50.0.1-pp311-pypy311_pp73-manylinux_2_34_aarch64.whl", hash = "sha256:d63ae8f6481fec907ac0f588eee8a90aefde112c633131fe540e5711ddbb5a4e"},
+    {file = "cryptography-50.0.1-pp311-pypy311_pp73-manylinux_2_34_x86_64.whl", hash = "sha256:804728ce710890870f3aaa344b2e161172d258d768ac139d02cfd9092d0d94e6"},
+    {file = "cryptography-50.0.1-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:693c99b49bd37d0d096e4334c10232c77248c415b98d35236094cdf96d57258b"},
+    {file = "cryptography-50.0.1.tar.gz", hash = "sha256:5dd9bda1c12b4162f6ff568eeb5e0ff956c28d14406e875cfe8a63a2d414ff20"},
+]
+
+[package.dependencies]
+cffi = {version = ">=2.0.0", markers = "platform_python_implementation != \"PyPy\""}
+
+[package.extras]
+ssh = ["bcrypt (>=3.1.5)"]
 
 [[package]]
 name = "deprecated"
@@ -1302,32 +1308,13 @@ dev = ["abi3audit", "black", "check-manifest", "coverage", "packaging", "pylint"
 test = ["pytest", "pytest-xdist", "setuptools"]
 
 [[package]]
-name = "pwdlib"
-version = "0.3.0"
-description = "Modern password hashing for Python"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-files = [
-    {file = "pwdlib-0.3.0-py3-none-any.whl", hash = "sha256:f86c15c138858c09f3bba0a10984d4f9178158c55deaa72eac0210849b1a140d"},
-    {file = "pwdlib-0.3.0.tar.gz", hash = "sha256:6ca30f9642a1467d4f5d0a4d18619de1c77f17dfccb42dd200b144127d3c83fc"},
-]
-
-[package.dependencies]
-argon2-cffi = {version = ">=23.1.0,<26", optional = true, markers = "extra == \"argon2\""}
-
-[package.extras]
-argon2 = ["argon2-cffi (>=23.1.0,<26)"]
-bcrypt = ["bcrypt (>=4.1.2,<6)"]
-
-[[package]]
 name = "pycparser"
 version = "3.0"
 description = "C parser in Python"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "implementation_name != \"PyPy\""
+markers = "platform_python_implementation != \"PyPy\" and implementation_name != \"PyPy\""
 files = [
     {file = "pycparser-3.0-py3-none-any.whl", hash = "sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992"},
     {file = "pycparser-3.0.tar.gz", hash = "sha256:600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29"},
@@ -1565,6 +1552,9 @@ files = [
     {file = "pyjwt-2.12.1-py3-none-any.whl", hash = "sha256:28ca37c070cad8ba8cd9790cd940535d40274d22f80ab87f3ac6a713e6e8454c"},
     {file = "pyjwt-2.12.1.tar.gz", hash = "sha256:c74a7a2adf861c04d002db713dd85f84beb242228e671280bf709d765b03672b"},
 ]
+
+[package.dependencies]
+cryptography = {version = ">=3.4.0", optional = true, markers = "extra == \"crypto\""}
 
 [package.extras]
 crypto = ["cryptography (>=3.4.0)"]
@@ -2765,4 +2755,4 @@ dev = ["pytest", "setuptools"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13, <4.0"
-content-hash = "c334d97e42bb295d803f08e5359cada323c316ea4f57f1951ca6e2a83276ae83"
+content-hash = "dfafe97396bb9c8d15c7758fef67ba31d8d16bd18a4f27c8db00855d83c28152"

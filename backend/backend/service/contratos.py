@@ -22,6 +22,28 @@ class ContratoService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    async def _recusar_se_sincronizado(self, centro_custo: str) -> None:
+        """Bloqueia alteração de CC que veio da receita.
+
+        A receita é a dona do dado; editar aqui daria a impressão de que
+        funcionou, e o próximo ciclo de sincronização (15 min) sobrescreveria em
+        silêncio. CCs criados localmente — que a receita não conhece — seguem
+        editáveis normalmente.
+        """
+        sincronizado = await self.session.scalar(
+            select(Contrato.sincronizado_em).where(
+                Contrato.centro_custo == centro_custo
+            )
+        )
+        if sincronizado is not None:
+            raise HTTPException(
+                status_code=HTTPStatus.CONFLICT,
+                detail=(
+                    'Este centro de custo é sincronizado da receita e não pode '
+                    'ser alterado aqui. Faça a alteração no sistema de receita.'
+                ),
+            )
+
     async def get(self, ctx: UserContext):  # noqa: ARG002
         """
         Todos os usuários autenticados veem todos os CCs (com nome do
@@ -58,8 +80,14 @@ class ContratoService:
             {
                 'centro_custo': c.centro_custo,
                 'descricao': c.descricao,
-                'gestor_nome': gestores.get(c.centro_custo),
+                # O texto da receita tem precedência: ele lista TODOS os
+                # coordenadores, inclusive quem não tem conta aqui.
+                'gestor_nome': c.gestor_nomes or gestores.get(c.centro_custo),
                 'total_membros': totais.get(c.centro_custo, 0),
+                'cliente_nome': c.cliente_nome,
+                'gestor_nomes': c.gestor_nomes,
+                'ativo': c.ativo,
+                'sincronizado': c.sincronizado_em is not None,
             }
             for c in contratos
         ]
@@ -113,6 +141,7 @@ class ContratoService:
         de teste (SQLite com FK desligado).
         """
         ctx.assert_cc_role(centro_custo, 'Gestor')
+        await self._recusar_se_sincronizado(centro_custo)
 
         atual = await self.session.scalar(
             select(Contrato.centro_custo).where(
@@ -202,6 +231,7 @@ class ContratoService:
     async def delete(self, centro_custo: str, ctx: UserContext):
         """Apenas Admin ou Gestor do próprio CC (por ocupação)."""
         ctx.assert_cc_role(centro_custo, 'Gestor')
+        await self._recusar_se_sincronizado(centro_custo)
 
         result = await self.session.execute(
             select(Contrato).where(Contrato.centro_custo == centro_custo)

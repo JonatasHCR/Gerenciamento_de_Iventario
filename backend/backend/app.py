@@ -14,7 +14,7 @@ from backend.routers.associacoes import (
     router_assoc_eletronico,
 )
 from backend.routers.audit_log import router_audit_log
-from backend.routers.auth import router_auth
+from backend.routers.manutencao import router_manutencao
 from backend.routers.cessao import router_cessao
 from backend.routers.contratos import router_contratos
 from backend.routers.eletronicos import router_eletronicos
@@ -94,6 +94,6 @@ app.include_router(router_localizacoes)
 app.include_router(router_marcas)
 app.include_router(router_modelos)
 app.include_router(router_audit_log)
-app.include_router(router_auth)
+app.include_router(router_manutencao)
 
 logger.info('app started — debug=%s, origins=%s', settings.DEBUG, _origins)

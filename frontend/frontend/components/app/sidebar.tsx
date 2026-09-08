@@ -19,10 +19,12 @@ import {
   Factory,
   Boxes,
   History,
+  Settings,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
+import { TrocarSistema } from './trocar-sistema'
 import { getSolicitacoes, createCargoInicial } from '@/lib/api/solicitacoes'
 import { getRecebimentosPendentesGestor } from '@/lib/api/cessoes'
 import { getAssociacoesContrato } from '@/lib/api/associacoes'
@@ -261,6 +263,20 @@ export function Sidebar() {
             <p className="text-xs text-muted-foreground">{user.tipo}</p>
           </button>
         )}
+        {user?.tipo === 'Admin' && (
+          <Button
+            variant="ghost"
+            size={collapsed ? 'icon' : 'sm'}
+            className="w-full text-muted-foreground hover:text-foreground"
+            asChild
+          >
+            <Link href="/administracao">
+              <Settings className="h-4 w-4" />
+              {!collapsed && <span className="ml-2">Administração</span>}
+            </Link>
+          </Button>
+        )}
+        <TrocarSistema collapsed={collapsed} />
         <Button
           variant="ghost"
           size={collapsed ? 'icon' : 'sm'}

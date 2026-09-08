@@ -29,7 +29,7 @@ class Solicitacao(Base):
     solicitante_id = Column(Integer, nullable=False, index=True)
 
     # Campos para entrada_cc
-    centro_custo = Column(String(4), nullable=True)
+    centro_custo = Column(String(20), nullable=True)
     ocupacao_solicitada = Column(String(50), nullable=True)
     convidado_por_id = Column(Integer, nullable=True)
 
@@ -37,7 +37,7 @@ class Solicitacao(Base):
     cargo_solicitado = Column(String(50), nullable=True)
 
     # Campos para cessao (Subgestor → Gestor)
-    centro_custo_destino = Column(String(4), nullable=True)
+    centro_custo_destino = Column(String(20), nullable=True)
     responsavel = Column(String(255), nullable=True)
 
     criado_em = Column(
