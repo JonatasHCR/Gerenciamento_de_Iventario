@@ -19,9 +19,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    # A porta do backend NAO e mais publicada no host: o unico que fala com ele
-    # e o servidor Next, por dentro da rede do Docker (API_URL abaixo). Expor
-    # so daria uma porta de entrada que ninguem usa.
+    # A porta do backend nao e publicada no host: quem fala com ele e o servidor
+    # Next, por dentro da rede do Docker (API_URL abaixo).
     environment:
       ENGINE_ASYNC: postgresql+asyncpg
       ENGINE_SYNC: postgresql+psycopg2
@@ -30,8 +29,6 @@ services:
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_NAME: ${POSTGRES_DB}
-      # Nao ha mais segredo de assinatura: quem emite token e o Keycloak e aqui
-      # so validamos, com a chave publica dele.
       OIDC_ISSUER: http://${HOST_IP:?defina HOST_IP no .env}:8080/realms/ufc
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:-inventario-api}
       OIDC_REQUIRED_GROUP: ${OIDC_REQUIRED_GROUP:-/apps/inventario}
@@ -69,8 +66,8 @@ services:
       HOST_IP: ${HOST_IP}
       PORTA_PUBLICA: ${FRONTEND_PORT:-3000}
       # As portas dos outros sistemas, para o seletor "Sistemas" montar os links.
-      # Vem do ambiente pelo mesmo motivo que o IP: um NEXT_PUBLIC_* seria assado
-      # na imagem em tempo de build e traria o IP de volta para os artefatos.
+      # Vem do ambiente, e nao de NEXT_PUBLIC_*, que seria assado na imagem em
+      # tempo de build e traria o IP de volta para os artefatos.
       PORTAL_PORT: ${PORTAL_PORT:-3080}
       INVENTARIO_PORT: ${INVENTARIO_PORT:-3030}
       RECEITA_PORT: ${RECEITA_PORT:-3040}
@@ -78,22 +75,15 @@ services:
       OIDC_CLIENT_ID: inventario-web
       OIDC_CLIENT_SECRET: ${INVENTARIO_CLIENT_SECRET:?defina INVENTARIO_CLIENT_SECRET no .env}
       SESSION_SECRET: ${INVENTARIO_SESSION_SECRET:?defina INVENTARIO_SESSION_SECRET no .env}
-      # O limite padrao de header do Node e 16 KB. Como cookie nao distingue
-      # porta e os quatro apps vivem no mesmo host, o navegador manda os cookies
-      # de todos para cada um — e o header estoura no quarto login, com um 431
-      # que derruba tudo de uma vez. As sessoes ja foram enxugadas; isto e a
-      # folga para o dia em que entrar um quinto sistema.
       NODE_OPTIONS: "--max-http-header-size=65536"
     depends_on:
       - backend
     restart: unless-stopped
 
-  # --- Sincronizacao com a receita --------------------------------------
-  # Puxa os centros de custo a cada SYNC_INTERVAL_MINUTES (padrao: 15).
-  #
-  # Container proprio, e nao um scheduler dentro do FastAPI, pelo mesmo motivo
-  # do db-backup: um agendador in-process multiplicaria com replicas, e duas
-  # instancias sincronizando o mesmo dado ao mesmo tempo e problema garantido.
+  # Puxa os centros de custo da receita a cada SYNC_INTERVAL_MINUTES.
+  # Container proprio, e nao um scheduler dentro do FastAPI: um agendador
+  # in-process multiplicaria com replicas, e duas instancias sincronizando o
+  # mesmo dado ao mesmo tempo e problema garantido.
   #
   # Manual (primeira carga, ou para depurar):
   #   docker compose run --rm sync python sync_receita.py
@@ -117,7 +107,7 @@ services:
       SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-15}
     # `command`, e nao `entrypoint`: com entrypoint o
     # `docker compose run --rm sync python sync_receita.py` viraria ARGUMENTO do
-    # laco infinito, e a execucao manual (primeira carga, depuracao) travaria.
+    # laco infinito, e a execucao manual travaria.
     command:
       - /bin/sh
       - -c
@@ -139,14 +129,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # --- Backup -----------------------------------------------------------
   # Uso: docker compose --profile backup up -d
-  # Roda backup automático a cada BACKUP_INTERVAL_HOURS horas (padrão: 24).
-  # Backups ficam em ./backups/  e são rotacionados após BACKUP_KEEP_DAYS dias.
-  #
-  # Backup manual:
-  #   docker compose --profile backup run --rm db-backup /scripts/backup.sh
-  #
   # Restore:
   #   docker compose --profile backup run --rm db-backup \
   #     sh -c 'gunzip -c /backups/<arquivo>.sql.gz | psql -h postgres -U $DB_USER $DB_NAME'
@@ -165,6 +148,8 @@ services:
     volumes:
       - ./backups:/backups
       - ./scripts/backup.sh:/scripts/backup.sh:ro
+    # `tr -d '\r'`: um editor no Windows pode gravar o script com CRLF, e o
+    # /bin/sh falha com um erro obscuro. O mount e :ro, entao roda uma copia.
     command:
       - /bin/sh
       - -c
@@ -182,34 +167,5 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # --- Gitea Runner (CI/CD) ---------------------------------------------
-  # Usa um Gitea já existente — não sobe um novo.
-  #
-  # SETUP (uma vez):
-  #   1. No seu Gitea: Painel de Admin → Actions → Runners → Criar runner
-  #      Copie o token de registro.
-  #   2. No .env, defina:
-  #        GITEA_INSTANCE_URL=http://<host-do-gitea>:<porta>
-  #        GITEA_RUNNER_TOKEN=<token-copiado>
-  #   3. Suba o runner:
-  #        docker compose --profile gitea up -d
-  #
-  # O runner se registra automaticamente no Gitea na primeira inicialização.
-  gitea-runner:
-    profiles: ["gitea"]
-    image: gitea/act_runner:latest
-    container_name: gitea-runner-inv
-    environment:
-      GITEA_INSTANCE_URL: ${GITEA_INSTANCE_URL:?Defina GITEA_INSTANCE_URL no .env}
-      GITEA_RUNNER_REGISTRATION_TOKEN: ${GITEA_RUNNER_TOKEN:?Defina GITEA_RUNNER_TOKEN no .env}
-      GITEA_RUNNER_NAME: "${GITEA_RUNNER_NAME:-local-runner}"
-      CONFIG_FILE: /data/runner-config.yaml
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - runner_data:/data
-      - ./.gitea/runner-config.yaml:/data/runner-config.yaml:ro
-    restart: unless-stopped
-
 volumes:
   postgres_data:
-  runner_data:
