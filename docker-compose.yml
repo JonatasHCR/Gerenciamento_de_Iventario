@@ -130,12 +130,10 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Uso: docker compose --profile backup up -d
   # Restore (os backups sao .sql em texto puro):
-  #   docker compose --profile backup run --rm db-backup \
+  #   docker compose run --rm db-backup \
   #     sh -c 'psql -v ON_ERROR_STOP=1 -h postgres -U $DB_USER $DB_NAME -f /backups/<arquivo>.sql'
   db-backup:
-    profiles: ["backup"]
     image: postgres:16-alpine
     environment:
       DB_HOST: postgres
