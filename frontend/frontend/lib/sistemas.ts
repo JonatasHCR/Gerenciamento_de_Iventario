@@ -28,7 +28,8 @@ export function sistemas(): Sistema[] {
   return [
     { grupo: '/apps/inventario', nome: 'Inventário', url: `${host}:${process.env.INVENTARIO_PORT ?? '3030'}` },
     { grupo: '/apps/receita', nome: 'Receita', url: `${host}:${process.env.RECEITA_PORT ?? '3040'}` },
-    { grupo: '/apps/despesa', nome: 'Despesas', url: `${host}:${process.env.DESPESA_PORT ?? '3010'}` },
+    { grupo: '/apps/despesa', nome: 'Radar', url: `${host}:${process.env.DESPESA_PORT ?? '3010'}` },
+    { grupo: '/apps/controle-despesa', nome: 'Controle de Despesa', url: `${host}:${process.env.CONTROLE_DESPESA_PORT ?? '3050'}` },
   ]
 }
 
