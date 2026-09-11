@@ -220,11 +220,9 @@ export default function UsuariosPage() {
     e.preventDefault()
     if (!editing) return
     try {
+      // Só o tipo: nome, email e senha vêm do Keycloak.
       const payload: UserUpdate = {}
-      if (editForm.nome !== editing.nome) payload.nome = editForm.nome
-      if (editForm.email !== editing.email) payload.email = editForm.email
       if (editForm.tipo !== editing.tipo) payload.tipo = editForm.tipo
-      if (editForm.senha) payload.senha = editForm.senha
 
       await updateUser(editing.id, payload)
       toast.success('Usuário atualizado!')
@@ -511,32 +509,17 @@ export default function UsuariosPage() {
             <DialogTitle>Editar usuário</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleEditSave} className="space-y-3" autoComplete="off">
-            <div className="space-y-1">
-              <Label>Nome</Label>
-              <Input
-                value={editForm.nome ?? ''}
-                onChange={(e) => setEditForm((f) => ({ ...f, nome: e.target.value }))}
-                autoComplete="off"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Email</Label>
-              <Input
-                type="email"
-                value={editForm.email ?? ''}
-                onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
-                autoComplete="off"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Nova senha (opcional)</Label>
-              <Input
-                type="password"
-                value={editForm.senha ?? ''}
-                onChange={(e) => setEditForm((f) => ({ ...f, senha: e.target.value }))}
-                placeholder="Deixe em branco para manter"
-                autoComplete="new-password"
-              />
+            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+              <p className="font-medium">{editing?.nome}</p>
+              <p className="text-muted-foreground">{editing?.email}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Nome, e-mail e senha vêm do Keycloak e valem para todos os
+                sistemas.{' '}
+                <a href="/api/auth/conta" className="underline underline-offset-4">
+                  Alterar os meus
+                </a>
+                .
+              </p>
             </div>
             {isAdmin && (
               <div className="space-y-1">

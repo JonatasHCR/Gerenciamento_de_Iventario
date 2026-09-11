@@ -16,10 +16,8 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    nome: str | None = Field(
-        None, min_length=1, description='Nome do usuário'
-    )
-    email: EmailStr | None = Field(None, description='Email do usuário')
+    # Sem nome e email: vem do Keycloak e valem para todos os sistemas. O login
+    # nao reescreve esses campos, entao editar aqui divergiria para sempre.
     tipo: Literal[
         'Gestor', 'Subgestor', 'Funcionario', 'Admin', 'Tecnico_TI'
     ] | None = Field(None, description='Tipo do usuário')

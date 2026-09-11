@@ -58,22 +58,19 @@ async def test_update_user(async_client, login_teste, usuario_teste):
 
     usuario_id = response.json()['users'][0]['id']
 
-    updated_usuario = {
-        'id': usuario_id,
-        'nome': 'João Souza',
-        'email': 'joao.souza@example.com',
-        'tipo': 'Admin',
-    }
+    antes = response.json()['users'][0]
 
     response = await async_client.put(
         f'{URL_USUARIO}{usuario_id}',
-        json=updated_usuario,
+        json={'tipo': 'Admin'},
         headers={'Authorization': f'Bearer {token_teste}'},
     )
 
-
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == updated_usuario
+    assert response.json()['tipo'] == 'Admin'
+    # Nome e email vem do Keycloak: o PUT nao os toca.
+    assert response.json()['nome'] == antes['nome']
+    assert response.json()['email'] == antes['email']
 
 
 @pytest.mark.asyncio
@@ -87,19 +84,35 @@ async def test_update_user_not_found(async_client, login_teste):
 
     usuario_id = response.json()['users'][0]['id'] + 1
 
-    updated_usuario = {
-        'id': usuario_id,
-        'nome': 'João Souza',
-        'email': 'joao.souza@example.com',
-        'tipo': 'Admin',
-    }
     response = await async_client.put(
         f'{URL_USUARIO}{usuario_id}',
-        json=updated_usuario,
+        json={'tipo': 'Admin'},
         headers={'Authorization': f'Bearer {token_teste}'},
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_update_ignora_nome_e_email(async_client, login_teste):
+    """Quem manda neles e o Keycloak; aceitar aqui divergiria para sempre."""
+    token_teste = login_teste['token']
+
+    response = await async_client.get(
+        URL_USUARIO, headers={'Authorization': f'Bearer {token_teste}'}
+    )
+    antes = response.json()['users'][0]
+
+    response = await async_client.put(
+        f'{URL_USUARIO}{antes["id"]}',
+        json={'nome': 'Outro Nome', 'email': 'outro@example.com'},
+        headers={'Authorization': f'Bearer {token_teste}'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['nome'] == antes['nome']
+    assert response.json()['email'] == antes['email']
 
 
 @pytest.mark.asyncio

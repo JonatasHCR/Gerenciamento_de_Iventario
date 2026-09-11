@@ -69,9 +69,10 @@ class UserService:
         return await self._save_user(user)
 
     async def update(self, user_id: int, user: UserUpdate, ctx: UserContext):
-        """
-        - Admin/TI → podem editar qualquer usuário e qualquer campo.
-        - Demais → apenas o próprio perfil; não podem alterar o campo `tipo`.
+        """Só o `tipo` é editável, e só por Admin/TI.
+
+        Nome e email saíram: vêm do Keycloak. Sobrou um endpoint que na prática
+        só o privilegiado usa — o não-privilegiado não tem mais campo algum.
         """
         if not ctx.is_privileged and ctx.user.id != user_id:
             raise HTTPException(
