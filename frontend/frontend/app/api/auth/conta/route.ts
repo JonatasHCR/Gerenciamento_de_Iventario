@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server'
 
-import { endpoints } from '@/lib/oidc'
+import { baseUrl, clientId, endpoints } from '@/lib/oidc'
 
-/**
- * Leva ao Account Console do Keycloak, onde a pessoa troca a senha.
- *
- * E uma rota de servidor de proposito: a URL vem do HOST_IP em runtime. Um
- * `NEXT_PUBLIC_...` seria assado na imagem em tempo de build e traria o IP de
- * volta para dentro dos artefatos — exatamente o que centralizar a variavel
- * evita.
- */
+// Rota de servidor porque a URL vem do HOST_IP em runtime; um NEXT_PUBLIC_
+// seria assado na imagem.
 export const dynamic = 'force-dynamic'
 
 export function GET() {
-  return NextResponse.redirect(endpoints.conta())
+  // referrer/referrer_uri: sem eles o Account Console nao oferece volta. O
+  // referrer_uri precisa estar nos redirectUris do client, ou vem ignorado.
+  const params = new URLSearchParams({
+    referrer: clientId(),
+    referrer_uri: `${baseUrl()}/`,
+  })
+  return NextResponse.redirect(`${endpoints.conta()}?${params}`)
 }
