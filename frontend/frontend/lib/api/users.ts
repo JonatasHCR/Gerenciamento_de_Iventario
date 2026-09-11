@@ -8,10 +8,8 @@ export interface UserCreate {
   tipo?: string
 }
 
+// Só o tipo: o backend recusa nome, email e senha — vêm do Keycloak.
 export interface UserUpdate {
-  nome?: string
-  email?: string
-  senha?: string
   tipo?: string
 }
 

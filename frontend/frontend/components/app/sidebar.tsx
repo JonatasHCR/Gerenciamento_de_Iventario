@@ -28,10 +28,9 @@ import { TrocarSistema } from './trocar-sistema'
 import { getSolicitacoes, createCargoInicial } from '@/lib/api/solicitacoes'
 import { getRecebimentosPendentesGestor } from '@/lib/api/cessoes'
 import { getAssociacoesContrato } from '@/lib/api/associacoes'
-import { updateUser, type UserUpdate } from '@/lib/api/users'
+import { updateUser } from '@/lib/api/users'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Dialog,
@@ -101,7 +100,6 @@ export function Sidebar() {
   const [pendentes, setPendentes] = useState(0)
   const [recebimentosPendentes, setRecebimentosPendentes] = useState(0)
   const [profileOpen, setProfileOpen] = useState(false)
-  const [form, setForm] = useState<UserUpdate>({})
   const [cargoSolicitado, setCargoSolicitado] = useState('')
   const [ehGestorOuSub, setEhGestorOuSub] = useState(false)
   const pathname = usePathname()
@@ -138,7 +136,6 @@ export function Sidebar() {
 
   function abrirPerfil() {
     if (!user) return
-    setForm({ nome: user.nome, email: user.email, senha: '' })
     setCargoSolicitado('')
     setProfileOpen(true)
   }
@@ -147,16 +144,7 @@ export function Sidebar() {
     e.preventDefault()
     if (!user) return
     try {
-      const payload: UserUpdate = {}
-      if (form.nome !== user.nome) payload.nome = form.nome
-      if (form.email !== user.email) payload.email = form.email
-      if (form.senha) payload.senha = form.senha
-
-      const algoMudou = Object.keys(payload).length > 0
-      if (algoMudou) {
-        await updateUser(user.id, payload)
-      }
-
+      // Só o cargo: nome, e-mail e senha são do Keycloak.
       if (cargoSolicitado && cargoSolicitado !== user.tipo) {
         if (user.tipo === 'Admin') {
           await updateUser(user.id, { tipo: cargoSolicitado })
@@ -165,8 +153,6 @@ export function Sidebar() {
           await createCargoInicial({ cargo_solicitado: cargoSolicitado })
           toast.success(`Solicitação de cargo "${cargoSolicitado}" enviada ao Admin.`)
         }
-      } else if (algoMudou) {
-        toast.success('Perfil atualizado!')
       }
 
       setProfileOpen(false)
@@ -294,32 +280,20 @@ export function Sidebar() {
             <DialogTitle>Meu perfil</DialogTitle>
           </DialogHeader>
           <form onSubmit={salvarPerfil} className="space-y-3" autoComplete="off">
-            <div className="space-y-1">
-              <Label>Nome</Label>
-              <Input
-                value={form.nome ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-                autoComplete="name"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Email</Label>
-              <Input
-                type="email"
-                value={form.email ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                autoComplete="email"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Nova senha (opcional)</Label>
-              <Input
-                type="password"
-                value={form.senha ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, senha: e.target.value }))}
-                placeholder="Deixe em branco para manter"
-                autoComplete="new-password"
-              />
+            <div className="rounded-md border bg-muted/40 p-3">
+              <p className="text-sm font-medium">{user?.nome}</p>
+              <p className="text-sm text-muted-foreground">{user?.email}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Nome, e-mail e senha são os mesmos em todos os sistemas.
+              </p>
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages --
+                  rota de servidor que redireciona para fora; Link navegaria no cliente */}
+              <a
+                href="/api/auth/conta"
+                className="mt-2 inline-block text-sm font-medium underline underline-offset-4"
+              >
+                Alterar meus dados
+              </a>
             </div>
             {user && (
               <div className="space-y-1">

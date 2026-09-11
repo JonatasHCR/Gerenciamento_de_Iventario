@@ -213,7 +213,7 @@ export default function UsuariosPage() {
 
   function abrirEdicao(u: User) {
     setEditing(u)
-    setEditForm({ nome: u.nome, email: u.email, tipo: u.tipo, senha: '' })
+    setEditForm({ tipo: u.tipo })
   }
 
   async function handleEditSave(e: React.FormEvent) {
@@ -515,6 +515,8 @@ export default function UsuariosPage() {
               <p className="mt-2 text-xs text-muted-foreground">
                 Nome, e-mail e senha vêm do Keycloak e valem para todos os
                 sistemas.{' '}
+                {/* eslint-disable-next-line @next/next/no-html-link-for-pages --
+                    rota de servidor que redireciona para fora */}
                 <a href="/api/auth/conta" className="underline underline-offset-4">
                   Alterar os meus
                 </a>
