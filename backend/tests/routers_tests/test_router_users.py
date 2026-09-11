@@ -95,8 +95,8 @@ async def test_update_user_not_found(async_client, login_teste):
 
 @pytest.mark.asyncio
 @pytest.mark.routers
-async def test_update_ignora_nome_e_email(async_client, login_teste):
-    """Quem manda neles e o Keycloak; aceitar aqui divergiria para sempre."""
+async def test_update_recusa_nome_e_email(async_client, login_teste):
+    """Recusa, nao ignora: 200 sem ter mudado nada faria parecer que mudou."""
     token_teste = login_teste['token']
 
     response = await async_client.get(
@@ -110,9 +110,13 @@ async def test_update_ignora_nome_e_email(async_client, login_teste):
         headers={'Authorization': f'Bearer {token_teste}'},
     )
 
-    assert response.status_code == HTTPStatus.OK
-    assert response.json()['nome'] == antes['nome']
-    assert response.json()['email'] == antes['email']
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+    depois = await async_client.get(
+        URL_USUARIO, headers={'Authorization': f'Bearer {token_teste}'}
+    )
+    atual = depois.json()['users'][0]
+    assert (atual['nome'], atual['email']) == (antes['nome'], antes['email'])
 
 
 @pytest.mark.asyncio

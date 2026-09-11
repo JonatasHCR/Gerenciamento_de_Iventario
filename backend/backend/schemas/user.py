@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserCreate(BaseModel):
@@ -16,8 +16,14 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    # Sem nome e email: vem do Keycloak e valem para todos os sistemas. O login
-    # nao reescreve esses campos, entao editar aqui divergiria para sempre.
+    """Só o `tipo`. Nome e email vêm do Keycloak.
+
+    `extra='forbid'` de propósito: descartar em silêncio devolveria 200 sem ter
+    mudado nada, e quem chamou ficaria achando que mudou.
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
     tipo: Literal[
         'Gestor', 'Subgestor', 'Funcionario', 'Admin', 'Tecnico_TI'
     ] | None = Field(None, description='Tipo do usuário')
