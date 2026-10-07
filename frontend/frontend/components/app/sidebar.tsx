@@ -3,33 +3,16 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import {
-  LayoutDashboard,
-  Building2,
-  Monitor,
-  Users,
-  ClipboardList,
-  ChevronLeft,
-  ChevronRight,
-  LogOut,
-  FileText,
-  BarChart3,
-  Tags,
-  MapPin,
-  Factory,
-  Boxes,
-  History,
-  Settings,
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight, LogOut, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
 import { TrocarSistema } from './trocar-sistema'
+import { ListaNavegacao } from './navegacao'
 import { getSolicitacoes, createCargoInicial } from '@/lib/api/solicitacoes'
 import { getRecebimentosPendentesGestor } from '@/lib/api/cessoes'
 import { getAssociacoesContrato } from '@/lib/api/associacoes'
 import { updateUser } from '@/lib/api/users'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -47,51 +30,6 @@ import {
 } from '@/components/ui/select'
 
 const CARGOS_SOLICITAVEIS = ['Gestor', 'Subgestor', 'Tecnico_TI']
-
-const NAV = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/centros-de-custo', label: 'Centros de Custo', icon: Building2 },
-  { href: '/equipamentos', label: 'Equipamentos', icon: Monitor },
-  { href: '/cessoes', label: 'Cessões', icon: FileText },
-  {
-    href: '/relatorios',
-    label: 'Relatórios',
-    icon: BarChart3,
-    roles: ['Admin', 'Tecnico_TI', 'Gestor', 'Subgestor'],
-  },
-  { href: '/usuarios', label: 'Usuários', icon: Users },
-  { href: '/solicitacoes', label: 'Solicitações', icon: ClipboardList },
-  {
-    href: '/tipos',
-    label: 'Tipos',
-    icon: Tags,
-    roles: ['Admin'],
-  },
-  {
-    href: '/localizacoes',
-    label: 'Localizações',
-    icon: MapPin,
-    roles: ['Admin'],
-  },
-  {
-    href: '/marcas',
-    label: 'Marcas',
-    icon: Factory,
-    roles: ['Admin'],
-  },
-  {
-    href: '/modelos',
-    label: 'Modelos',
-    icon: Boxes,
-    roles: ['Admin'],
-  },
-  {
-    href: '/auditoria',
-    label: 'Auditoria',
-    icon: History,
-    roles: ['Admin'],
-  },
-] as const
 
 const POLL_MS = 5000
 
@@ -164,8 +102,8 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'flex h-screen flex-col border-r bg-card transition-all duration-200',
-        collapsed ? 'w-16' : 'w-56',
+        'flex h-screen flex-col border-r bg-sidebar transition-all duration-200',
+        collapsed ? 'w-16' : 'w-60',
       )}
     >
       <div className="flex items-center justify-between border-b px-3 py-4">
@@ -182,61 +120,14 @@ export function Sidebar() {
         </Button>
       </div>
 
-      <nav className="flex-1 space-y-1 p-2">
-        {NAV.map((item) => {
-          const { href, label, icon: Icon } = item
-          // Regra especial: /relatorios precisa Admin/TI OU ter Gestor/Subgestor em algum CC
-          if (href === '/relatorios') {
-            const isAdminTI =
-              user?.tipo === 'Admin' || user?.tipo === 'Tecnico_TI'
-            if (!isAdminTI && !ehGestorOuSub) return null
-          }
-          // /tipos, /localizacoes, /auditoria: restritos pelo array roles
-          if (
-            href === '/tipos' ||
-            href === '/localizacoes' ||
-            href === '/marcas' ||
-            href === '/modelos' ||
-            href === '/auditoria'
-          ) {
-            if (user?.tipo !== 'Admin') return null
-          }
-          const active = pathname === href
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                active
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {!collapsed && (
-                <span className="flex flex-1 items-center justify-between">
-                  {label}
-                  {href === '/solicitacoes' && pendentes > 0 && (
-                    <Badge variant="destructive" className="ml-2 h-5 px-1.5 text-xs">
-                      {pendentes}
-                    </Badge>
-                  )}
-                  {href === '/cessoes' && recebimentosPendentes > 0 && (
-                    <Badge
-                      variant="destructive"
-                      className="ml-2 h-5 px-1.5 text-xs"
-                      title="Equipamento(s) recebido(s)"
-                    >
-                      {recebimentosPendentes}
-                    </Badge>
-                  )}
-                </span>
-              )}
-            </Link>
-          )
-        })}
-      </nav>
+      <ListaNavegacao
+        user={user}
+        ehGestorOuSub={ehGestorOuSub}
+        pathname={pathname}
+        pendentes={pendentes}
+        recebimentos={recebimentosPendentes}
+        recolhido={collapsed}
+      />
 
       <div className="border-t p-3">
         {!collapsed && user && (
