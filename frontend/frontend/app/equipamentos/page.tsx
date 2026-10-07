@@ -1123,6 +1123,21 @@ function EquipamentosConteudo() {
                     {detalhe.descricao || <span className="text-muted-foreground">sem descrição</span>}
                   </dd>
                 </dl>
+                {detalhe.status === 'Externo' &&
+                  !historico.some((c) => c.eletronicos.some((x) => x.id === detalhe.id && x.devolvido_em === null)) && (
+                    <div className="rounded-lg border border-warn/40 bg-warn-bg p-3 text-sm">
+                      <p className="font-medium text-warn">Cedido sem cessão registrada</p>
+                      <p className="mt-0.5 text-muted-foreground">
+                        Está marcado como cedido, mas não há cessão aberta, por isso não tem termo. Registre a
+                        cessão para gerar o documento.
+                      </p>
+                      <Button size="sm" className="mt-2" asChild>
+                        <Link href={`/equipamentos/ceder?ids=${detalhe.id}`}>
+                          <FileText className="h-4 w-4" /> Registrar cessão
+                        </Link>
+                      </Button>
+                    </div>
+                  )}
                 <div>
                   <p className="mb-2 text-sm font-medium">Histórico de cessões</p>
                   {historico.length === 0 ? (

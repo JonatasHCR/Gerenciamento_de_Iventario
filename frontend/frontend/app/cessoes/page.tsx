@@ -13,7 +13,8 @@ import {
   type Cessao,
 } from '@/lib/api/cessoes'
 import { getUsers } from '@/lib/api/users'
-import type { User } from '@/types/api'
+import { getEletronicos } from '@/lib/api/eletronicos'
+import type { Eletronico, User } from '@/types/api'
 import { formatDate } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -52,6 +53,9 @@ function CessoesConteudo() {
   const [dataDevolucao, setDataDevolucao] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [detalheId, setDetalheId] = useState<number | null>(null)
+  const [cedidos, setCedidos] = useState<Eletronico[]>([])
+  const [verSemTermo, setVerSemTermo] = useState(false)
+  const [marcadosSemTermo, setMarcadosSemTermo] = useState<Set<number>>(new Set())
   const [marcadosDetalhe, setMarcadosDetalhe] = useState<Set<number>>(new Set())
 
   const isAdmin = user?.tipo === 'Admin'
@@ -71,6 +75,9 @@ function CessoesConteudo() {
   useEffect(() => {
     load()
     getUsers().then(setUsers).catch(() => {})
+    getEletronicos()
+      .then((todos) => setCedidos(todos.filter((e) => e.status === 'Externo')))
+      .catch(() => {})
     // Marca recebimentos como vistos pelo gestor (no-op se não for gestor de nenhum CC)
     marcarRecebimentosVistos().catch(() => {})
   }, [])
@@ -229,6 +236,11 @@ function CessoesConteudo() {
 
 
   const detalhe = cessoes.find((c) => c.id === detalheId) ?? null
+  // Marcados como cedidos fora do fluxo (carga, edição): sem cessão, sem termo.
+  const emCessaoAberta = new Set(
+    cessoes.flatMap((c) => c.eletronicos.filter((e) => e.devolvido_em === null).map((e) => e.id)),
+  )
+  const semTermo = loading ? [] : cedidos.filter((e) => !emCessaoAberta.has(e.id))
   const podeDevolverDetalhe =
     detalhe !== null && canDevolver(detalhe) && (detalhe.status === 'ativa' || detalhe.status === 'parcial')
 
@@ -384,6 +396,67 @@ function CessoesConteudo() {
           </Link>
         )}
       </div>
+
+      {semTermo.length > 0 && (
+        <div className="rounded-xl border border-warn/40 bg-warn-bg p-4 text-sm">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="font-medium text-warn">
+                {semTermo.length} equipamento(s) marcado(s) como cedido sem cessão registrada
+              </p>
+              <p className="mt-0.5 text-muted-foreground">
+                Entraram como cedidos por carga ou edição, então não têm termo nem recebimento. Marque os que foram
+                para a mesma pessoa e registre a cessão para gerar os documentos.
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setVerSemTermo((v) => !v)}>
+              {verSemTermo ? 'Esconder' : 'Ver equipamentos'}
+            </Button>
+          </div>
+          {verSemTermo && (
+            <div className="mt-3 space-y-2">
+              <div className="flex max-h-56 flex-wrap gap-1.5 overflow-auto">
+                {semTermo.map((e) => (
+                  <label
+                    key={e.id}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-1.5 rounded-md border bg-card px-2 py-1 text-xs',
+                      marcadosSemTermo.has(e.id) && 'border-primary',
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={marcadosSemTermo.has(e.id)}
+                      onChange={() =>
+                        setMarcadosSemTermo((s) => {
+                          const n = new Set(s)
+                          if (n.has(e.id)) n.delete(e.id)
+                          else n.add(e.id)
+                          return n
+                        })
+                      }
+                    />
+                    <span className="font-medium">{e.nome}</span>
+                    <span className="font-mono text-muted-foreground">{e.numero_patrimonio}</span>
+                    <span className="text-muted-foreground">· CC {e.centro_custo}</span>
+                  </label>
+                ))}
+              </div>
+              {canRequest && (
+                <Button size="sm" disabled={marcadosSemTermo.size === 0} asChild={marcadosSemTermo.size > 0}>
+                  {marcadosSemTermo.size > 0 ? (
+                    <Link href={`/equipamentos/ceder?ids=${[...marcadosSemTermo].join(',')}`}>
+                      <FileText className="h-4 w-4" /> Registrar cessão de {marcadosSemTermo.size}
+                    </Link>
+                  ) : (
+                    <span>Marque os equipamentos</span>
+                  )}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-lg bg-muted p-0.5 text-sm" role="tablist">

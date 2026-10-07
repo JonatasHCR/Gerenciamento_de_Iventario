@@ -160,8 +160,20 @@ class CessaoService:
                         ),
                     )
 
+        # "Externo" sem cessão aberta veio de carga ou edição: registrar a
+        # cessão agora regulariza e gera o termo.
+        abertas = set(
+            (
+                await self.session.execute(
+                    select(CessaoEletronico.eletronico_id).where(
+                        CessaoEletronico.eletronico_id.in_(data.eletronico_ids),
+                        CessaoEletronico.devolvido_em.is_(None),
+                    )
+                )
+            ).scalars()
+        )
         for e in eletronicos:
-            if e.status == 'Externo':
+            if e.id in abertas:
                 raise HTTPException(
                     status_code=HTTPStatus.CONFLICT,
                     detail=(
