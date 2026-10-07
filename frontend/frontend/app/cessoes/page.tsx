@@ -25,11 +25,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { FileText, FileCheck, Undo2, Plus, Trash2, Search, Building2 } from 'lucide-react'
+import { FileText, FileCheck, Undo2, Plus, Trash2, Search, Building2, Eye } from 'lucide-react'
 import { StatusCessao } from '@/components/app/status'
 import { cn } from '@/lib/utils'
 
-type Aba = 'abertas' | 'recebimentos' | 'devolvidas'
+type Aba = 'todas' | 'abertas' | 'recebimentos' | 'devolvidas'
 
 const temRecebimentoNovo = (c: Cessao) => c.devolucoes.some((d) => d.gestor_visto_em === null)
 
@@ -51,6 +51,8 @@ function CessoesConteudo() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [dataDevolucao, setDataDevolucao] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [detalheId, setDetalheId] = useState<number | null>(null)
+  const [marcadosDetalhe, setMarcadosDetalhe] = useState<Set<number>>(new Set())
 
   const isAdmin = user?.tipo === 'Admin'
   const canManage =
@@ -103,11 +105,25 @@ function CessoesConteudo() {
     }
   }
 
-  function abrirDevolver(c: Cessao) {
+  function abrirDevolver(c: Cessao, ids?: number[]) {
     setDevolverCessaoState(c)
     const pendentes = c.eletronicos.filter((e) => e.devolvido_em === null)
-    setSelectedIds(new Set(pendentes.map((e) => e.id)))
+    setSelectedIds(new Set(ids?.length ? ids : pendentes.map((e) => e.id)))
     setDataDevolucao('')
+  }
+
+  function abrirDetalhe(c: Cessao) {
+    setDetalheId(c.id)
+    setMarcadosDetalhe(new Set())
+  }
+
+  function marcarNoDetalhe(id: number) {
+    setMarcadosDetalhe((s) => {
+      const n = new Set(s)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
   }
 
   function toggleItem(id: number) {
@@ -187,9 +203,16 @@ function CessoesConteudo() {
   const comRecebimentoNovo = cessoes.filter(temRecebimentoNovo)
   const semAcento = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   const q = semAcento(texto.trim())
-  const doLink = cessoes.find((x) => x.id === destacada)
-  const aba: Aba = abaEscolhida ?? (doLink?.status === 'devolvida' ? 'devolvidas' : 'abertas')
-  const daAba = aba === 'abertas' ? ativas : aba === 'devolvidas' ? devolvidas : comRecebimentoNovo
+  // Sem escolha, mostra tudo (em aberto e devolvidas), como sempre foi.
+  const aba: Aba = abaEscolhida ?? 'todas'
+  const daAba =
+    aba === 'todas'
+      ? cessoes
+      : aba === 'abertas'
+        ? ativas
+        : aba === 'devolvidas'
+          ? devolvidas
+          : comRecebimentoNovo
   const visiveis = q
     ? daAba.filter((c) =>
         semAcento(
@@ -204,6 +227,10 @@ function CessoesConteudo() {
     document.getElementById(`cessao-${destacada}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [destacada, loading, cessoes, aba])
 
+
+  const detalhe = cessoes.find((c) => c.id === detalheId) ?? null
+  const podeDevolverDetalhe =
+    detalhe !== null && canDevolver(detalhe) && (detalhe.status === 'ativa' || detalhe.status === 'parcial')
 
   const renderStatusBadge = (c: Cessao) => (
     <StatusCessao
@@ -226,8 +253,8 @@ function CessoesConteudo() {
         )}
       >
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <p className="font-semibold">
+          <button type="button" className="text-left" onClick={() => abrirDetalhe(c)} title="Ver a cessão">
+            <p className="font-semibold hover:text-primary">
               #{c.id} · {c.responsavel}
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -237,8 +264,12 @@ function CessoesConteudo() {
               </span>
               <span>cedida em {formatDate(c.cedido_em).slice(0, 10)}</span>
             </div>
-          </div>
+          </button>
           <div className="flex flex-wrap justify-end gap-1">
+            <Button size="sm" variant="ghost" onClick={() => abrirDetalhe(c)}>
+              <Eye className="mr-1 h-4 w-4" />
+              Ver
+            </Button>
             <Link href={`/cessoes/${c.id}/termo`}>
               <Button size="sm" variant="outline">
                 <FileText className="mr-1 h-4 w-4" />
@@ -358,6 +389,7 @@ function CessoesConteudo() {
         <div className="flex rounded-lg bg-muted p-0.5 text-sm" role="tablist">
           {(
             [
+              ['todas', 'Todas', cessoes.length],
               ['abertas', 'Em aberto', ativas.length],
               ['recebimentos', 'Recebimentos novos', comRecebimentoNovo.length],
               ['devolvidas', 'Devolvidas', devolvidas.length],
@@ -396,11 +428,162 @@ function CessoesConteudo() {
               ? 'Nenhum recebimento esperando conferência.'
               : aba === 'abertas'
                 ? 'Nenhuma cessão em aberto.'
-                : 'Nenhuma cessão devolvida ainda.'}
+                : aba === 'devolvidas'
+                  ? 'Nenhuma cessão devolvida ainda.'
+                  : 'Nenhuma cessão registrada.'}
         </div>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2">{visiveis.map(renderItem)}</div>
+        <div className="space-y-5">
+          {(aba === 'todas'
+            ? ([
+                ['Em aberto', visiveis.filter((c) => c.status !== 'devolvida')],
+                ['Devolvidas', visiveis.filter((c) => c.status === 'devolvida')],
+              ] as const)
+            : ([['', visiveis]] as const)
+          ).map(([titulo, lista]) =>
+            lista.length ? (
+              <div key={titulo || 'lista'} className="space-y-3">
+                {titulo && (
+                  <h2 className="text-sm font-semibold">
+                    {titulo} <span className="font-normal text-muted-foreground">({lista.length})</span>
+                  </h2>
+                )}
+                <div className="grid gap-3 lg:grid-cols-2">{lista.map(renderItem)}</div>
+              </div>
+            ) : null,
+          )}
+        </div>
       )}
+
+      <Dialog open={detalhe !== null} onOpenChange={(o) => !o && setDetalheId(null)}>
+        <DialogContent className="sm:max-w-3xl">
+          {detalhe && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex flex-wrap items-center gap-2">
+                  Cessão #{detalhe.id} · {detalhe.responsavel}
+                  {renderStatusBadge(detalhe)}
+                </DialogTitle>
+              </DialogHeader>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
+                <div>
+                  <dt className="text-xs text-muted-foreground">Centro de custo</dt>
+                  <dd>{detalhe.centro_custo_destino}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Cedida em</dt>
+                  <dd>{formatDate(detalhe.cedido_em).slice(0, 10)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Cedida por</dt>
+                  <dd>{userNome(detalhe.cedido_por_id)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Devolvidos</dt>
+                  <dd>
+                    {detalhe.total_devolvidos} de {detalhe.total_eletronicos}
+                  </dd>
+                </div>
+              </dl>
+              <div className="max-h-80 overflow-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-xs text-muted-foreground">
+                    <tr className="border-b">
+                      {podeDevolverDetalhe && <th className="w-10 px-3 py-2"></th>}
+                      <th className="px-3 py-2 text-left font-medium">Equipamento</th>
+                      <th className="px-3 py-2 text-left font-medium">Patrimônio</th>
+                      <th className="px-3 py-2 text-left font-medium">Série</th>
+                      <th className="px-3 py-2 text-left font-medium">Situação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detalhe.eletronicos.map((e) => (
+                      <tr key={e.id} className="border-b last:border-0">
+                        {podeDevolverDetalhe && (
+                          <td className="px-3 py-2">
+                            {e.devolvido_em === null && (
+                              <input
+                                type="checkbox"
+                                checked={marcadosDetalhe.has(e.id)}
+                                onChange={() => marcarNoDetalhe(e.id)}
+                                aria-label={`Marcar ${e.nome}`}
+                              />
+                            )}
+                          </td>
+                        )}
+                        <td className="px-3 py-2">
+                          <Link href={`/equipamentos?id=${e.id}`} className="hover:text-primary">
+                            {e.nome}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-2 font-mono text-xs">{e.numero_patrimonio}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{e.numero_serie}</td>
+                        <td className="px-3 py-2 text-xs">
+                          {e.devolvido_em ? (
+                            <span className="inline-flex flex-wrap items-center gap-1.5">
+                              <span className="rounded-full bg-ok-bg px-2 py-0.5 font-medium text-ok">
+                                devolvido em {formatDate(e.devolvido_em).slice(0, 10)}
+                              </span>
+                              {e.devolucao_lote != null && (
+                                <Link
+                                  href={`/cessoes/${detalhe.id}/recebimento/${e.devolucao_lote}`}
+                                  className="text-primary underline-offset-2 hover:underline"
+                                >
+                                  Recebimento #{e.devolucao_lote}
+                                </Link>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-warn-bg px-2 py-0.5 font-medium text-warn">
+                              com o responsável
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {detalhe.perifericos.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Periféricos: {detalhe.perifericos.map((x) => `${x.quantidade} ${x.nome.toLowerCase()}`).join(', ')}
+                </p>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+                <div className="flex flex-wrap gap-1.5">
+                  <Link href={`/cessoes/${detalhe.id}/termo`}>
+                    <Button size="sm" variant="outline">
+                      <FileText className="mr-1 h-4 w-4" /> Termo em PDF
+                    </Button>
+                  </Link>
+                  {detalhe.devolucoes.map((d) => (
+                    <Link key={d.lote} href={`/cessoes/${detalhe.id}/recebimento/${d.lote}`}>
+                      <Button size="sm" variant="outline">
+                        <FileCheck className="mr-1 h-4 w-4" /> Recebimento #{d.lote}
+                      </Button>
+                    </Link>
+                  ))}
+                </div>
+                {podeDevolverDetalhe && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const ids = [...marcadosDetalhe]
+                      setDetalheId(null)
+                      abrirDevolver(detalhe, ids)
+                    }}
+                  >
+                    <Undo2 className="mr-1 h-4 w-4" />
+                    {marcadosDetalhe.size
+                      ? `Devolver ${marcadosDetalhe.size} marcado(s)`
+                      : 'Devolver todos os pendentes'}
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={devolverCessaoState !== null}

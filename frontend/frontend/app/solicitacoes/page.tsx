@@ -199,7 +199,73 @@ export default function SolicitacoesPage() {
           <header className="border-b px-4 py-3">
             <h2 className="text-sm font-semibold">Histórico</h2>
           </header>
-          <ul className="divide-y">{historico.map(renderItem)}</ul>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-xs text-muted-foreground">
+                <tr className="border-b">
+                  <th className="px-4 py-2 text-left font-medium">Pedido em</th>
+                  <th className="px-4 py-2 text-left font-medium">Quem pediu</th>
+                  <th className="px-4 py-2 text-left font-medium">Pedido</th>
+                  <th className="px-4 py-2 text-left font-medium">Detalhe</th>
+                  <th className="px-4 py-2 text-left font-medium">Situação</th>
+                  <th className="px-4 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {historico.map((s) => {
+                  const [rotulo, cor] = SITUACAO[s.status]
+                  return (
+                    <tr key={s.id} className="border-b last:border-0">
+                      <td className="whitespace-nowrap px-4 py-2 text-xs text-muted-foreground">
+                        {formatDate(s.criado_em)}
+                      </td>
+                      <td className="px-4 py-2 font-medium">{nomeDe(s.solicitante_id)}</td>
+                      <td className="px-4 py-2">
+                        {labelTipo(s.tipo)}
+                        {s.convidado_por_id != null && <span className="text-muted-foreground"> · convite</span>}
+                      </td>
+                      <td className="px-4 py-2 text-muted-foreground">
+                        {s.tipo === 'cessao'
+                          ? `${s.eletronicos?.length ?? 0} equip. · CC ${s.centro_custo} → ${s.centro_custo_destino} · ${s.responsavel}`
+                          : [
+                              s.centro_custo && `CC ${s.centro_custo}`,
+                              s.ocupacao_solicitada && `como ${s.ocupacao_solicitada}`,
+                              s.cargo_solicitado && `cargo ${s.cargo_solicitado}`,
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
+                      </td>
+                      <td className="px-4 py-2">
+                        <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', cor)}>{rotulo}</span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="flex justify-end gap-1">
+                          {s.tipo === 'cessao' && (
+                            <Button size="sm" variant="ghost" asChild>
+                              <Link href={`/solicitacoes/${s.id}/termo`}>
+                                <FileText className="h-4 w-4" /> Termo
+                              </Link>
+                            </Button>
+                          )}
+                          {user?.tipo === 'Admin' && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => cancelar(s.id)}
+                              title="Excluir"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
     </div>

@@ -82,6 +82,7 @@ import {
 import { FiltroMulti } from '@/components/app/filtro-multi'
 import { StatusEquipamento, ROTULO_STATUS } from '@/components/app/status'
 import { formatDate } from '@/lib/utils'
+import { IconeTipo } from '@/components/app/icone-tipo'
 import Link from 'next/link'
 import { SearchableSelect } from '@/components/app/searchable-select'
 
@@ -178,6 +179,7 @@ function EquipamentosConteudo() {
   const [localLoteOpen, setLocalLoteOpen] = useState(false)
   const [localLote, setLocalLote] = useState('')
   const [emLote, setEmLote] = useState(false)
+  const [excluir, setExcluir] = useState<Eletronico | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [total, setTotal] = useState(0)
@@ -767,7 +769,8 @@ function EquipamentosConteudo() {
               }
             >
               <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
+                <IconeTipo tipo={e.tipo} />
+                <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{e.nome}</p>
                   <p className="font-mono text-xs text-muted-foreground">{e.numero_patrimonio}</p>
                 </div>
@@ -791,6 +794,7 @@ function EquipamentosConteudo() {
                 <dt className="text-muted-foreground">Com</dt>
                 <dd className="truncate">{responsavelDe(e)}</dd>
               </dl>
+              {e.descricao && <p className="truncate text-xs text-muted-foreground">{e.descricao}</p>}
             </div>
           ))}
         </div>
@@ -853,11 +857,16 @@ function EquipamentosConteudo() {
                     </td>
                     <td className="px-3 py-2 font-mono tabular-nums">{e.numero_patrimonio}</td>
                     <td className="px-3 py-2">
+                      <div className="flex items-center gap-2.5">
+                      <IconeTipo tipo={e.tipo} />
+                      <div>
                       <p className="font-medium">{e.nome}</p>
                       <p className="text-xs text-muted-foreground">
                         {e.tipo}
                         {(e.marca || e.modelo) && ` · ${[e.marca, e.modelo].filter(Boolean).join(' ')}`}
                       </p>
+                      </div>
+                      </div>
                     </td>
                     <td className="px-3 py-2">
                       <StatusEquipamento status={e.status} />
@@ -897,7 +906,7 @@ function EquipamentosConteudo() {
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => abrirEditar(e)} title="Editar">
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDelete(e.id)} title="Excluir">
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setExcluir(e)} title="Excluir">
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -1016,6 +1025,33 @@ function EquipamentosConteudo() {
         </div>
       )}
 
+      <Dialog open={excluir !== null} onOpenChange={(o) => !o && setExcluir(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir {excluir?.nome}?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            O equipamento de patrimônio <strong className="text-foreground">{excluir?.numero_patrimonio}</strong> sai do
+            inventário. A exclusão fica registrada na auditoria.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setExcluir(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (excluir) handleDelete(excluir.id)
+                if (excluir && detalheId === excluir.id) abrirDetalhe(null)
+                setExcluir(null)
+              }}
+            >
+              <Trash2 className="h-4 w-4" /> Excluir
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={localLoteOpen} onOpenChange={setLocalLoteOpen}>
         <DialogContent>
           <DialogHeader>
@@ -1047,9 +1083,12 @@ function EquipamentosConteudo() {
         <SheetContent className="w-full gap-0 sm:max-w-md">
           {detalhe && (
             <>
-              <SheetHeader className="border-b">
+              <SheetHeader className="flex-row items-center gap-3 border-b">
+                <IconeTipo tipo={detalhe.tipo} className="size-10" />
+                <div className="space-y-0.5">
                 <SheetTitle>{detalhe.nome}</SheetTitle>
                 <SheetDescription className="font-mono">Patrimônio {detalhe.numero_patrimonio}</SheetDescription>
+                </div>
               </SheetHeader>
               <div className="flex-1 space-y-5 overflow-y-auto p-4">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1069,6 +1108,8 @@ function EquipamentosConteudo() {
                     {contratos.find((c) => c.centro_custo === detalhe.centro_custo)?.descricao &&
                       ` · ${contratos.find((c) => c.centro_custo === detalhe.centro_custo)?.descricao}`}
                   </dd>
+                  <dt className="text-muted-foreground">Gestor do CC</dt>
+                  <dd>{contratos.find((c) => c.centro_custo === detalhe.centro_custo)?.gestor_nome || '—'}</dd>
                   <dt className="text-muted-foreground">Localização</dt>
                   <dd>{detalhe.localizacao || '—'}</dd>
                   {detalhe.ip && (
@@ -1077,12 +1118,10 @@ function EquipamentosConteudo() {
                       <dd className="font-mono">{detalhe.ip}</dd>
                     </>
                   )}
-                  {detalhe.descricao && (
-                    <>
-                      <dt className="text-muted-foreground">Descrição</dt>
-                      <dd className="whitespace-pre-line">{detalhe.descricao}</dd>
-                    </>
-                  )}
+                  <dt className="text-muted-foreground">Descrição</dt>
+                  <dd className="whitespace-pre-line">
+                    {detalhe.descricao || <span className="text-muted-foreground">sem descrição</span>}
+                  </dd>
                 </dl>
                 <div>
                   <p className="mb-2 text-sm font-medium">Histórico de cessões</p>
@@ -1103,6 +1142,25 @@ function EquipamentosConteudo() {
                                 ? ` · devolvido em ${formatDate(item.devolvido_em).slice(0, 10)}`
                                 : ' · ainda com o responsável'}
                             </p>
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                              <Link
+                                href={`/cessoes/${c.id}/termo`}
+                                className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs hover:bg-muted"
+                              >
+                                <FileText className="h-3 w-3" /> Termo de cessão
+                              </Link>
+                              {c.devolucoes
+                                .filter((d) => d.eletronicos.some((x) => x.id === detalhe.id))
+                                .map((d) => (
+                                  <Link
+                                    key={d.lote}
+                                    href={`/cessoes/${c.id}/recebimento/${d.lote}`}
+                                    className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs hover:bg-muted"
+                                  >
+                                    <FileText className="h-3 w-3" /> Recebimento #{d.lote}
+                                  </Link>
+                                ))}
+                            </div>
                           </li>
                         )
                       })}
@@ -1115,10 +1173,7 @@ function EquipamentosConteudo() {
                   <Button
                     variant="outline"
                     className="text-destructive"
-                    onClick={() => {
-                      handleDelete(detalhe.id)
-                      abrirDetalhe(null)
-                    }}
+                    onClick={() => setExcluir(detalhe)}
                   >
                     <Trash2 className="h-4 w-4" /> Excluir
                   </Button>
