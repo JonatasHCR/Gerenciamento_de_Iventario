@@ -19,14 +19,25 @@ function dataExtenso(iso: string): string {
 export default function TermoPage() {
   const params = useParams<{ id: string }>()
   const [cessao, setCessao] = useState<Cessao | null>(null)
+  const [erro, setErro] = useState('')
 
   useEffect(() => {
     const id = parseInt(params.id)
     if (Number.isNaN(id)) return
-    getCessao(id).then(setCessao).catch(() => {})
+    getCessao(id)
+      .then(setCessao)
+      .catch((e) => setErro(e instanceof Error ? e.message : 'Não foi possível abrir o termo.'))
   }, [params.id])
 
-  if (!cessao) return null
+  if (erro) {
+    return (
+      <div className="mx-auto max-w-md rounded-xl border bg-card p-6 text-center text-sm">
+        <p className="font-medium">Termo da cessão #{params.id} indisponível</p>
+        <p className="mt-1 text-muted-foreground">{erro}</p>
+      </div>
+    )
+  }
+  if (!cessao) return <p className="p-6 text-sm text-muted-foreground">Carregando termo…</p>
 
   return (
     <div className="mx-auto max-w-[800px] bg-white p-8 text-black print:p-0">

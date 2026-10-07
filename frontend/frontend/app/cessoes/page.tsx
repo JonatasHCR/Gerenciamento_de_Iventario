@@ -524,14 +524,13 @@ function CessoesConteudo() {
                               <span className="rounded-full bg-ok-bg px-2 py-0.5 font-medium text-ok">
                                 devolvido em {formatDate(e.devolvido_em).slice(0, 10)}
                               </span>
-                              {e.devolucao_lote != null && (
-                                <Link
-                                  href={`/cessoes/${detalhe.id}/recebimento/${e.devolucao_lote}`}
-                                  className="text-primary underline-offset-2 hover:underline"
-                                >
-                                  Recebimento #{e.devolucao_lote}
-                                </Link>
-                              )}
+                              {/* Devoluções antigas não têm lote; o backend as agrupa como #1. */}
+                              <Link
+                                href={`/cessoes/${detalhe.id}/recebimento/${e.devolucao_lote ?? 1}`}
+                                className="text-primary underline-offset-2 hover:underline"
+                              >
+                                Recebimento #{e.devolucao_lote ?? 1}
+                              </Link>
                             </span>
                           ) : (
                             <span className="rounded-full bg-warn-bg px-2 py-0.5 font-medium text-warn">
