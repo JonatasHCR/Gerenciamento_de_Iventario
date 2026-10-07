@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, LogOut, Settings } from 'lucide-react'
+import { Menu, LogOut } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { TrocarSistema } from './trocar-sistema'
 import { ListaNavegacao } from './navegacao'
@@ -88,19 +87,6 @@ export function MobileSidebar() {
                 <p className="text-xs text-muted-foreground">{user.tipo}</p>
               </div>
             </div>
-            {user?.tipo === 'Admin' && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full text-muted-foreground hover:text-foreground"
-                asChild onClick={() => setOpen(false)}
-              >
-                <Link href="/administracao">
-                  <Settings className="h-4 w-4" />
-                  <span className="ml-2">Administração</span>
-                </Link>
-              </Button>
-            )}
             <TrocarSistema />
             <Button
               variant="ghost"

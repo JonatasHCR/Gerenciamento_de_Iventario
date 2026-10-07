@@ -123,9 +123,9 @@ export default function AdministracaoPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6 py-2">
       <header>
-        <h1 className="text-xl font-semibold">Administração</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Backup e manutenção</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Backup, restauração e limpeza do banco. Restrito aos administradores.
+          Backup, limpeza e restauração do banco. Só administradores.
         </p>
       </header>
 

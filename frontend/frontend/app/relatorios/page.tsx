@@ -18,6 +18,7 @@ import { getCessoes, type Cessao } from '@/lib/api/cessoes'
 import { getTipos, type TipoEletronico } from '@/lib/api/tipos'
 import type {
   Eletronico,
+  EletronicoStatus,
   Contrato,
   User,
   AssociacaoUserContrato,
@@ -25,50 +26,47 @@ import type {
 } from '@/types/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import {
-  FileSpreadsheet,
-  Printer,
-  Filter,
-  Columns3,
-  Layers,
-  Search,
-} from 'lucide-react'
+import { ROTULO_STATUS } from '@/components/app/status'
+import { cn } from '@/lib/utils'
+import { Download, FileText } from 'lucide-react'
 
 type ColKey = keyof Eletronico | 'responsavel'
 type AgrupamentoKey =
   | 'centro_custo'
-  | 'localizacao'
-  | 'responsavel'
-  | 'status'
   | 'tipo'
+  | 'localizacao'
+  | 'status'
+  | 'responsavel'
   | 'marca'
+  | ''
 
-const COLUNAS: { key: ColKey; label: string }[] = [
-  { key: 'nome', label: 'Nome' },
+// Na ordem do protótipo; as três últimas só existem no sistema.
+const COLUNAS: { key: ColKey; label: string; mono?: boolean }[] = [
+  { key: 'numero_patrimonio', label: 'Patrimônio', mono: true },
+  { key: 'nome', label: 'Equipamento' },
   { key: 'tipo', label: 'Tipo' },
-  { key: 'marca', label: 'Marca' },
   { key: 'modelo', label: 'Modelo' },
-  { key: 'numero_serie', label: 'Nº Série' },
-  { key: 'numero_patrimonio', label: 'Patrimônio' },
-  { key: 'status', label: 'Status' },
-  { key: 'centro_custo', label: 'Centro de Custo' },
-  { key: 'responsavel', label: 'Responsável' },
-  { key: 'ip', label: 'IP' },
+  { key: 'numero_serie', label: 'Série', mono: true },
+  { key: 'status', label: 'Situação' },
   { key: 'localizacao', label: 'Localização' },
+  { key: 'responsavel', label: 'Responsável' },
+  { key: 'ip', label: 'IP', mono: true },
+  { key: 'marca', label: 'Marca' },
+  { key: 'centro_custo', label: 'Centro de custo' },
   { key: 'descricao', label: 'Descrição' },
 ]
+const COLUNAS_PADRAO: ColKey[] = ['numero_patrimonio', 'nome', 'tipo', 'status', 'localizacao', 'responsavel']
 
-const STATUSES = ['Interno', 'Externo', 'Em Manutenção']
+const STATUSES: EletronicoStatus[] = ['Interno', 'Externo', 'Em Manutenção']
 
 const AGRUPAMENTOS: { key: AgrupamentoKey; label: string }[] = [
-  { key: 'centro_custo', label: 'Centro de Custo' },
-  { key: 'localizacao', label: 'Localização' },
-  { key: 'responsavel', label: 'Responsável' },
-  { key: 'status', label: 'Status' },
+  { key: 'centro_custo', label: 'Centro de custo' },
   { key: 'tipo', label: 'Tipo' },
+  { key: 'localizacao', label: 'Localização' },
+  { key: 'status', label: 'Situação' },
+  { key: 'responsavel', label: 'Responsável' },
   { key: 'marca', label: 'Marca' },
+  { key: '', label: 'Sem agrupar' },
 ]
 
 const SEM_LOCALIZACAO = '(Sem localização)'
@@ -85,6 +83,48 @@ async function fetchAll(query: EletronicoQuery): Promise<Eletronico[]> {
   return [first.eletronicos, ...rest.map((r) => r.eletronicos)].flat()
 }
 
+/** Caixas de marcar no estilo do protótipo: legenda e uma opção por linha. */
+function Grupo({
+  titulo,
+  acoes,
+  children,
+}: {
+  titulo: string
+  acoes?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <fieldset className="flex min-w-0 flex-col gap-1.5">
+      <legend className="mb-1 flex w-full items-center justify-between text-[12.5px] font-semibold">
+        {titulo}
+        {acoes && <span className="flex gap-2 text-xs font-normal">{acoes}</span>}
+      </legend>
+      {children}
+    </fieldset>
+  )
+}
+
+function Opcao({ checked, onChange, children }: { checked: boolean; onChange: () => void; children: React.ReactNode }) {
+  return (
+    <label className="flex min-w-0 cursor-pointer items-center gap-2 text-[13px]">
+      <input type="checkbox" checked={checked} onChange={onChange} />
+      {children}
+    </label>
+  )
+}
+
+function Lk({ onClick, children, apagado }: { onClick: () => void; children: React.ReactNode; apagado?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn('hover:underline', apagado ? 'text-muted-foreground' : 'text-primary')}
+    >
+      {children}
+    </button>
+  )
+}
+
 export default function RelatoriosPage() {
   const { user } = useAuth()
   const router = useRouter()
@@ -97,69 +137,28 @@ export default function RelatoriosPage() {
   const [authChecked, setAuthChecked] = useState(false)
   const [authorized, setAuthorized] = useState(false)
   const [tiposCatalogo, setTiposCatalogo] = useState<TipoEletronico[]>([])
-  const [loadingData, setLoadingData] = useState(false)
 
-  const tiposNomes = useMemo(
-    () => tiposCatalogo.map((t) => t.nome),
-    [tiposCatalogo],
-  )
+  const tiposNomes = useMemo(() => tiposCatalogo.map((t) => t.nome), [tiposCatalogo])
 
-  // Filtros
-  const [ccsSel, setCcsSel] = useState<Set<string>>(new Set())
+  const [titulo, setTitulo] = useState('Inventário por centro de custo')
+  const [agrupamento, setAgrupamento] = useState<AgrupamentoKey>('centro_custo')
   const [statusSel, setStatusSel] = useState<Set<string>>(new Set(STATUSES))
   const [tiposSel, setTiposSel] = useState<Set<string>>(new Set())
+  const [colunasSel, setColunasSel] = useState<Set<ColKey>>(new Set(COLUNAS_PADRAO))
+  const [ccsSel, setCcsSel] = useState<Set<string>>(new Set())
+  const [ccSearch, setCcSearch] = useState('')
   const [localizacoesSel, setLocalizacoesSel] = useState<Set<string>>(new Set())
   const [locSearch, setLocSearch] = useState('')
-
-  // Gestor multi-select
   const [gestorIds, setGestorIds] = useState<Set<number>>(new Set())
-  const [gestorSearch, setGestorSearch] = useState('')
-
-  // Agrupamento
-  const [agrupamento, setAgrupamento] = useState<AgrupamentoKey>('centro_custo')
-
-  const [colunasSel, setColunasSel] = useState<Set<ColKey>>(
-    new Set(COLUNAS.map((c) => c.key).filter((k) => k !== 'centro_custo')),
-  )
-  const [titulo, setTitulo] = useState('Relatório de Equipamentos')
 
   const isAdminOuTI = user?.tipo === 'Admin' || user?.tipo === 'Tecnico_TI'
 
-  async function buscarComFiltros() {
-    setLoadingData(true)
-    try {
-      const query: EletronicoQuery = {
-        centro_custo: ccsSel.size > 0 ? Array.from(ccsSel) : undefined,
-        status:
-          statusSel.size > 0 && statusSel.size < STATUSES.length
-            ? Array.from(statusSel)
-            : undefined,
-        tipo:
-          tiposSel.size > 0 && tiposSel.size < tiposNomes.length
-            ? Array.from(tiposSel)
-            : undefined,
-      }
-      const items = await fetchAll(query)
-      setEletronicos(items)
-      setLocalizacoesSel(new Set())
-    } catch {
-      toast.error('Erro ao buscar equipamentos.')
-    } finally {
-      setLoadingData(false)
-    }
-  }
-
   useEffect(() => {
     if (!user) return
-    const isAdminOuTIUser = user.tipo === 'Admin' || user.tipo === 'Tecnico_TI'
-
-    if (isAdminOuTIUser) {
-      setAuthorized(true)
-      setAuthChecked(true)
+    const carregar = () => {
       fetchAll({}).then(setEletronicos).catch(() => {})
       getContratos().then(setContratos).catch(() => {})
       getUsers().then(setUsers).catch(() => {})
-      getAssociacoesContrato().then(setAssocs).catch(() => {})
       getAssociacoesEletronico().then(setAssocsEl).catch(() => {})
       getCessoes().then(setCessoes).catch(() => {})
       getTipos(true)
@@ -168,6 +167,13 @@ export default function RelatoriosPage() {
           setTiposSel(new Set(tipos.map((t) => t.nome)))
         })
         .catch(() => {})
+    }
+
+    if (user.tipo === 'Admin' || user.tipo === 'Tecnico_TI') {
+      setAuthorized(true)
+      setAuthChecked(true)
+      getAssociacoesContrato().then(setAssocs).catch(() => {})
+      carregar()
       return
     }
 
@@ -175,49 +181,23 @@ export default function RelatoriosPage() {
       .then((all) => {
         setAssocs(all)
         const ehGestorOuSub = all.some(
-          (a) =>
-            a.user_id === user.id &&
-            (a.ocupacao === 'Gestor' || a.ocupacao === 'Subgestor'),
+          (a) => a.user_id === user.id && (a.ocupacao === 'Gestor' || a.ocupacao === 'Subgestor'),
         )
         if (!ehGestorOuSub) {
-          toast.error(
-            'Apenas Gestores/Subgestores de algum CC podem gerar relatórios.',
-          )
+          toast.error('Apenas Gestores/Subgestores de algum CC podem gerar relatórios.')
           router.replace('/')
           return
         }
         setAuthorized(true)
-        fetchAll({}).then(setEletronicos).catch(() => {})
-        getContratos().then(setContratos).catch(() => {})
-        getUsers().then(setUsers).catch(() => {})
-        getAssociacoesEletronico().then(setAssocsEl).catch(() => {})
-        getCessoes().then(setCessoes).catch(() => {})
-        getTipos(true)
-          .then((tipos) => {
-            setTiposCatalogo(tipos)
-            setTiposSel(new Set(tipos.map((t) => t.nome)))
-          })
-          .catch(() => {})
+        carregar()
       })
       .catch(() => router.replace('/'))
       .finally(() => setAuthChecked(true))
   }, [user, router])
 
-  // Quando muda seleção de gestores, auto-popula CCs com a união dos CCs deles
-  useEffect(() => {
-    if (gestorIds.size === 0) return
-    const ccs = assocs
-      .filter((a) => gestorIds.has(a.user_id) && a.ocupacao === 'Gestor')
-      .map((a) => a.centro_custo)
-    setCcsSel(new Set(ccs))
-  }, [gestorIds, assocs])
-
-  // Localizações únicas derivadas dos equipamentos (empty set = todos visíveis)
   const todasLocalizacoes = useMemo(() => {
     const set = new Set<string>()
-    for (const e of eletronicos) {
-      set.add(e.localizacao ? e.localizacao : SEM_LOCALIZACAO)
-    }
+    for (const e of eletronicos) set.add(e.localizacao ? e.localizacao : SEM_LOCALIZACAO)
     return Array.from(set).sort((a, b) => {
       if (a === SEM_LOCALIZACAO) return 1
       if (b === SEM_LOCALIZACAO) return -1
@@ -237,13 +217,7 @@ export default function RelatoriosPage() {
 
   const responsavelCessaoPorEqId = useMemo(() => {
     const map = new Map<number, string>()
-    for (const c of cessoes) {
-      for (const e of c.eletronicos) {
-        if (e.devolvido_em === null) {
-          map.set(e.id, c.responsavel)
-        }
-      }
-    }
+    for (const c of cessoes) for (const e of c.eletronicos) if (e.devolvido_em === null) map.set(e.id, c.responsavel)
     return map
   }, [cessoes])
 
@@ -251,647 +225,325 @@ export default function RelatoriosPage() {
     () =>
       eletronicos.filter((e) => {
         if (ccsSel.size > 0 && !ccsSel.has(e.centro_custo)) return false
-        if (statusSel.size > 0 && !statusSel.has(e.status)) return false
-        if (tiposSel.size > 0 && !tiposSel.has(e.tipo)) return false
-        if (localizacoesSel.size > 0) {
-          const loc = e.localizacao ? e.localizacao : SEM_LOCALIZACAO
-          if (!localizacoesSel.has(loc)) return false
-        }
+        if (!statusSel.has(e.status)) return false
+        if (tiposNomes.length > 0 && !tiposSel.has(e.tipo)) return false
+        if (localizacoesSel.size > 0 && !localizacoesSel.has(e.localizacao || SEM_LOCALIZACAO)) return false
         return true
       }),
-    [eletronicos, ccsSel, statusSel, tiposSel, localizacoesSel],
+    [eletronicos, ccsSel, statusSel, tiposSel, tiposNomes, localizacoesSel],
   )
 
-  const agrupado = useMemo(() => {
-    const grupos = new Map<string, Eletronico[]>()
-    for (const e of filtrados) {
-      let key: string
-      if (agrupamento === 'responsavel') {
-        key = responsavelPorEqId.get(e.id) ?? '(Sem responsável)'
-      } else if (agrupamento === 'localizacao') {
-        key = e.localizacao ? e.localizacao : SEM_LOCALIZACAO
-      } else {
-        const v = e[agrupamento as keyof Eletronico]
-        key = v == null || v === '' ? '—' : String(v)
-      }
-      const arr = grupos.get(key) ?? []
-      arr.push(e)
-      grupos.set(key, arr)
+  const contratoPorCc = useMemo(() => new Map(contratos.map((c) => [c.centro_custo, c])), [contratos])
+
+  function responsavelDe(e: Eletronico): string {
+    if (e.status === 'Externo') {
+      const r = responsavelCessaoPorEqId.get(e.id)
+      if (r) return r
     }
-    return Array.from(grupos.entries()).sort(([a], [b]) =>
-      a.localeCompare(b),
-    )
-  }, [filtrados, agrupamento, responsavelPorEqId])
+    return responsavelPorEqId.get(e.id) ?? ''
+  }
+
+  function rotuloGrupo(e: Eletronico): string {
+    switch (agrupamento) {
+      case 'centro_custo': {
+        const d = contratoPorCc.get(e.centro_custo)?.descricao
+        return `CR ${e.centro_custo}${d ? ` · ${d}` : ''}`
+      }
+      case 'status':
+        return ROTULO_STATUS[e.status]
+      case 'localizacao':
+        return e.localizacao || SEM_LOCALIZACAO
+      case 'responsavel':
+        return responsavelDe(e) || '(Sem responsável)'
+      case '':
+        return ''
+      default:
+        return String(e[agrupamento] || '—')
+    }
+  }
+
+  const grupos = useMemo(() => {
+    const m = new Map<string, Eletronico[]>()
+    for (const e of filtrados) {
+      const k = rotuloGrupo(e)
+      const arr = m.get(k) ?? []
+      arr.push(e)
+      m.set(k, arr)
+    }
+    return Array.from(m.entries()).sort(([a], [b]) => a.localeCompare(b))
+    // rotuloGrupo depende só destes valores
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtrados, agrupamento, contratoPorCc, responsavelPorEqId, responsavelCessaoPorEqId])
 
   if (!user || !authChecked || !authorized) return null
 
-  const colunasOrdenadas = COLUNAS.filter((c) => colunasSel.has(c.key))
-  const contratoPorCc = new Map(contratos.map((c) => [c.centro_custo, c]))
-  const agrupLabel =
-    AGRUPAMENTOS.find((a) => a.key === agrupamento)?.label ?? agrupamento
+  const colunas = COLUNAS.filter((c) => colunasSel.has(c.key))
+  const nCols = colunas.length || 1
 
-  function getCellValue(e: Eletronico, key: ColKey): string {
-    if (key === 'responsavel') {
-      if (e.status === 'Externo') {
-        const r = responsavelCessaoPorEqId.get(e.id)
-        if (r) return r
-      }
-      return responsavelPorEqId.get(e.id) ?? '—'
-    }
+  function valor(e: Eletronico, key: ColKey): string {
+    if (key === 'responsavel') return responsavelDe(e)
+    if (key === 'status') return ROTULO_STATUS[e.status]
     const v = e[key]
-    if (key === 'ip') {
-      const s = v == null ? '' : String(v).trim()
-      return s || 'Sem IP'
-    }
     return v == null ? '' : String(v)
   }
 
-  function toggleSet<T>(s: Set<T>, v: T, setter: (s: Set<T>) => void) {
+  function alternar<T>(s: Set<T>, v: T, setter: (s: Set<T>) => void) {
     const n = new Set(s)
     if (n.has(v)) n.delete(v)
     else n.add(v)
     setter(n)
   }
 
-  function selectAll<T>(values: T[], setter: (s: Set<T>) => void) {
-    setter(new Set(values))
-  }
-
-  function clearAll<T>(setter: (s: Set<T>) => void) {
-    setter(new Set())
-  }
-
-  function csvEscape(v: unknown): string {
-    const s = v == null ? '' : String(v)
-    if (s.includes(';') || s.includes('"') || s.includes('\n')) {
-      return `"${s.replace(/"/g, '""')}"`
+  function escolherGestor(id: number) {
+    const n = new Set(gestorIds)
+    if (n.has(id)) n.delete(id)
+    else n.add(id)
+    setGestorIds(n)
+    if (n.size > 0) {
+      setCcsSel(
+        new Set(assocs.filter((a) => n.has(a.user_id) && a.ocupacao === 'Gestor').map((a) => a.centro_custo)),
+      )
     }
-    return s
   }
 
-  function baixarCSV() {
+  function csv(v: unknown): string {
+    const s = v == null ? '' : String(v)
+    return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+
+  function baixarExcel() {
     if (filtrados.length === 0) {
-      toast.error('Nenhum equipamento no filtro.')
+      toast.error('Nenhum equipamento no recorte.')
       return
     }
-    const headers = [agrupLabel, ...colunasOrdenadas.map((c) => c.label)]
-    const lines: string[] = [headers.join(';')]
-
-    for (const [grupo, equips] of agrupado) {
-      const contrato =
-        agrupamento === 'centro_custo' ? contratoPorCc.get(grupo) : null
-      const desc = contrato ? ` — ${contrato.descricao}` : ''
-      lines.push(csvEscape(`▶ ${grupo}${desc} (${equips.length})`))
-      for (const e of equips) {
-        const row = [
-          csvEscape(grupo),
-          ...colunasOrdenadas.map((c) => csvEscape(getCellValue(e, c.key))),
-        ]
-        lines.push(row.join(';'))
-      }
-      lines.push('')
-    }
-
-    const csv = '﻿' + lines.join('\r\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const linhas: string[] = [[...(agrupamento ? ['Grupo'] : []), ...colunas.map((c) => c.label)].join(';')]
+    for (const [g, eqs] of grupos)
+      for (const e of eqs) linhas.push([...(agrupamento ? [csv(g)] : []), ...colunas.map((c) => csv(valor(e, c.key)))].join(';'))
+    const blob = new Blob(['﻿' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${titulo.replace(/\s+/g, '_')}_${new Date()
-      .toISOString()
-      .slice(0, 10)}.csv`
+    a.download = `${titulo.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
-    toast.success('CSV baixado — abra no Excel.')
+    toast.success('Planilha baixada — abre no Excel.')
   }
 
-  function imprimirPDF() {
+  function gerarPDF() {
     if (filtrados.length === 0) {
-      toast.error('Nenhum equipamento no filtro.')
+      toast.error('Nenhum equipamento no recorte.')
       return
     }
     window.print()
   }
 
-  const userIdsGestores = new Set(
-    assocs.filter((a) => a.ocupacao === 'Gestor').map((a) => a.user_id),
+  const gestores = users
+    .filter((u) => assocs.some((a) => a.user_id === u.id && a.ocupacao === 'Gestor'))
+    .sort((a, b) => a.nome.localeCompare(b.nome))
+  const ccsVisiveis = contratos.filter((c) =>
+    `${c.centro_custo} ${c.descricao}`.toLowerCase().includes(ccSearch.toLowerCase()),
   )
-  const gestoresOptions = users.filter((u) => userIdsGestores.has(u.id))
-  const gestoresFiltrados = gestoresOptions.filter((u) =>
-    u.nome.toLowerCase().includes(gestorSearch.toLowerCase()),
-  )
-  const gestoresSelecionados = gestoresOptions.filter((u) =>
-    gestorIds.has(u.id),
-  )
-  const ccsDoGestores = [
-    ...new Set(
-      assocs
-        .filter((a) => gestorIds.has(a.user_id) && a.ocupacao === 'Gestor')
-        .map((a) => a.centro_custo),
-    ),
-  ]
+  const locsVisiveis = todasLocalizacoes.filter((l) => l.toLowerCase().includes(locSearch.toLowerCase()))
+  const hoje = new Date().toLocaleDateString('pt-BR')
 
-  const locsFiltradas = todasLocalizacoes.filter((l) =>
-    l.toLowerCase().includes(locSearch.toLowerCase()),
-  )
-
-  const chips = [
-    ccsSel.size > 0 && {
-      label: `${ccsSel.size} CC(s)`,
-      value: Array.from(ccsSel).join(', '),
-    },
-    localizacoesSel.size > 0 && {
-      label: `${localizacoesSel.size} local(is)`,
-      value: Array.from(localizacoesSel).join(', '),
-    },
-    statusSel.size < STATUSES.length && {
-      label: 'Status',
-      value: Array.from(statusSel).join(', '),
-    },
-    tiposSel.size < tiposNomes.length && {
-      label: 'Tipos',
-      value: Array.from(tiposSel).join(', '),
-    },
-    gestoresSelecionados.length > 0 && {
-      label: `${gestoresSelecionados.length} gestor(es)`,
-      value: gestoresSelecionados.map((g) => g.nome).join(', '),
-    },
-  ].filter(Boolean) as { label: string; value: string }[]
-
+  // A mesma folha na prévia e na impressão.
   const folha = (
-    <>
-        <div className="mb-4 flex items-start justify-between">
-          <div>
-            <h1 className="text-xl font-bold">{titulo}</h1>
-            <p className="text-xs">
-              Gerado em {new Date().toLocaleString('pt-BR')} ·{' '}
-              {filtrados.length} equipamento(s) · {agrupado.length} grupo(s) ·
-              por {agrupLabel}
-            </p>
-            {chips.length > 0 && (
-              <p className="mt-1 text-[10px]">
-                <strong>Filtros:</strong>{' '}
-                {chips.map((c) => `${c.label}: ${c.value}`).join(' · ')}
-              </p>
-            )}
-          </div>
-          <div className="text-right">
-            <div className="text-lg font-bold tracking-tight">UFC</div>
-            <div className="text-[10px] tracking-widest text-gray-600">
-              ENGENHARIA
-            </div>
-          </div>
+    <div className="text-[11.5px] text-[#1f1514]">
+      <div className="mb-2.5 flex items-end justify-between gap-3 border-b-2 border-primary pb-2">
+        <div>
+          <div className="text-[10px] uppercase tracking-[.08em] text-[#8a7570]">UFC Engenharia · InvControl</div>
+          <h3 className="text-base font-bold">{titulo}</h3>
         </div>
-
-        {agrupado.map(([grupo, equips]) => {
-          const contrato =
-            agrupamento === 'centro_custo' ? contratoPorCc.get(grupo) : null
-          const nCols = colunasOrdenadas.length || 1
-          return (
-            <div key={grupo} className="mb-6">
-              <table className="w-full border-collapse text-[10px]">
-                <thead>
-                  <tr>
-                    <td
-                      colSpan={nCols}
-                      className="border border-black bg-gray-800 px-1.5 py-0.5 text-left font-bold text-white"
-                    >
-                      {agrupamento === 'centro_custo' ? 'CC ' : ''}
-                      {grupo}
-                      {contrato && (
-                        <span className="ml-1 font-normal text-gray-300">
-                          — {contrato.descricao}
-                        </span>
-                      )}
-                      <span className="float-right font-normal text-gray-300">
-                        {equips.length} equipamento(s)
-                      </span>
-                    </td>
-                  </tr>
-                  <tr>
-                    {colunasOrdenadas.map((c) => (
-                      <th
-                        key={c.key}
-                        className="border border-black bg-gray-200 px-1 py-0.5 text-left"
-                      >
-                        {c.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {equips.map((e) => (
-                    <tr key={e.id} className="break-inside-avoid">
-                      {colunasOrdenadas.map((c) => (
-                        <td
-                          key={c.key}
-                          className="border border-black px-1 py-0.5"
-                        >
-                          {getCellValue(e, c.key) || '—'}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
-        })}
-    </>
+        <div className="text-right text-[10.5px] text-[#8a7570]">
+          {filtrados.length} equipamentos · {hoje}
+        </div>
+      </div>
+      <table className="w-full border-collapse">
+        <thead>
+          <tr>
+            {colunas.map((c) => (
+              <th
+                key={c.key}
+                className="border-b border-[#e6dcd8] bg-[#f6f1ef] px-2 py-[5px] text-left text-[10.5px] font-semibold text-[#5b4b47]"
+              >
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {grupos.map(([g, eqs]) => [
+            g ? (
+              <tr key={`g-${g}`} className="break-inside-avoid">
+                <td colSpan={nCols} className="border-b border-[#efe7e4] bg-[#fbf6f4] px-2 py-[5px] text-[11px] font-semibold">
+                  {g} · {eqs.length}
+                </td>
+              </tr>
+            ) : null,
+            ...eqs.map((e) => (
+              <tr key={e.id} className="break-inside-avoid">
+                {colunas.map((c) => (
+                  <td
+                    key={c.key}
+                    className={cn('border-b border-[#efe7e4] px-2 py-[5px] text-[11px]', c.mono && 'font-mono')}
+                  >
+                    {valor(e, c.key) || '—'}
+                  </td>
+                ))}
+              </tr>
+            )),
+          ])}
+        </tbody>
+      </table>
+    </div>
   )
 
   return (
     <>
       <div className="space-y-5 print:hidden">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Relatórios</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Relatórios</h1>
             <p className="text-sm text-muted-foreground">
-              Marque à esquerda; a folha ao lado é o que sai impresso e muda na hora
+              Monte o recorte à esquerda; a prévia ao lado é exatamente o que sai no PDF.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={baixarCSV}>
-              <FileSpreadsheet className="mr-2 h-4 w-4" />
-              Excel (CSV)
+            <Button variant="outline" onClick={baixarExcel}>
+              <Download className="h-4 w-4" /> Excel
             </Button>
-            <Button onClick={imprimirPDF}>
-              <Printer className="mr-2 h-4 w-4" />
-              PDF
+            <Button onClick={gerarPDF}>
+              <FileText className="h-4 w-4" /> Gerar PDF
             </Button>
           </div>
         </div>
 
-        <div className="grid items-start gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="space-y-4">
-        {/* Filtros */}
-        <section className="rounded-lg border bg-card">
-          <header className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">Filtros</h2>
+        <div className="grid items-start gap-[18px] lg:grid-cols-[300px_minmax(0,1fr)]">
+          <div className="flex flex-col gap-3.5 rounded-xl border bg-card p-4 shadow-xs">
+            <div>
+              <label htmlFor="r-t" className="mb-1.5 block text-[12.5px] font-medium">Título</label>
+              <Input id="r-t" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={buscarComFiltros}
-              disabled={loadingData}
-            >
-              <Search className="mr-1.5 h-3.5 w-3.5" />
-              {loadingData ? 'Recarregando…' : 'Recarregar'}
-            </Button>
-          </header>
-          <div className="space-y-4 p-4">
-            <div className="space-y-1">
-              <Label>Título do relatório</Label>
-              <Input
-                value={titulo}
-                onChange={(e) => setTitulo(e.target.value)}
-              />
+            <div>
+              <label htmlFor="r-g" className="mb-1.5 block text-[12.5px] font-medium">Agrupar por</label>
+              <select
+                id="r-g"
+                value={agrupamento}
+                onChange={(e) => setAgrupamento(e.target.value as AgrupamentoKey)}
+                className="h-9 w-full rounded-md border bg-background px-2.5 text-sm"
+              >
+                {AGRUPAMENTOS.map((a) => (
+                  <option key={a.key || 'nenhum'} value={a.key}>{a.label}</option>
+                ))}
+              </select>
             </div>
 
-            {isAdminOuTI && (
-              <div className="rounded-md border border-dashed bg-muted/30 p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Atalho: filtrar por Gestor
-                  </Label>
-                  {gestorIds.size > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setGestorIds(new Set())}
-                      className="text-xs text-muted-foreground hover:underline"
-                    >
-                      limpar seleção
-                    </button>
-                  )}
-                </div>
-                <Input
-                  placeholder="Buscar gestor…"
-                  value={gestorSearch}
-                  onChange={(e) => setGestorSearch(e.target.value)}
-                  className="mb-2 h-7 text-xs"
-                />
-                <div className="max-h-36 space-y-0.5 overflow-auto rounded-md border bg-background p-1">
-                  {gestoresFiltrados.length === 0 && (
-                    <p className="px-2 py-2 text-xs text-muted-foreground">
-                      {gestoresOptions.length === 0
-                        ? 'Nenhum gestor cadastrado'
-                        : 'Nenhum resultado'}
-                    </p>
-                  )}
-                  {gestoresFiltrados.map((u) => (
-                    <label
-                      key={u.id}
-                      className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/50"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={gestorIds.has(u.id)}
-                        onChange={() =>
-                          toggleSet(gestorIds, u.id, setGestorIds)
-                        }
-                      />
+            <Grupo titulo="Situação">
+              {STATUSES.map((s) => (
+                <Opcao key={s} checked={statusSel.has(s)} onChange={() => alternar(statusSel, s, setStatusSel)}>
+                  {ROTULO_STATUS[s]}
+                </Opcao>
+              ))}
+            </Grupo>
+
+            <Grupo titulo="Tipos">
+              {tiposNomes.map((t) => (
+                <Opcao key={t} checked={tiposSel.has(t)} onChange={() => alternar(tiposSel, t, setTiposSel)}>
+                  {t}
+                </Opcao>
+              ))}
+            </Grupo>
+
+            <Grupo
+              titulo="Colunas"
+              acoes={
+                <>
+                  <Lk onClick={() => setColunasSel(new Set(COLUNAS.map((c) => c.key)))}>todas</Lk>
+                  <Lk apagado onClick={() => setColunasSel(new Set(COLUNAS_PADRAO))}>padrão</Lk>
+                </>
+              }
+            >
+              {COLUNAS.map((c) => (
+                <Opcao key={c.key} checked={colunasSel.has(c.key)} onChange={() => alternar(colunasSel, c.key, setColunasSel)}>
+                  {c.label}
+                </Opcao>
+              ))}
+            </Grupo>
+
+            <Grupo
+              titulo="Centros de custo"
+              acoes={ccsSel.size > 0 && <Lk apagado onClick={() => { setCcsSel(new Set()); setGestorIds(new Set()) }}>limpar</Lk>}
+            >
+              <Input
+                placeholder="Buscar CR…"
+                value={ccSearch}
+                onChange={(e) => setCcSearch(e.target.value)}
+                className="h-8 text-xs"
+              />
+              <div className="flex max-h-40 flex-col gap-1.5 overflow-auto">
+                {ccsVisiveis.map((c) => (
+                  <Opcao
+                    key={c.centro_custo}
+                    checked={ccsSel.has(c.centro_custo)}
+                    onChange={() => alternar(ccsSel, c.centro_custo, setCcsSel)}
+                  >
+                    <span className="font-medium">{c.centro_custo}</span>
+                    <span className="truncate text-xs text-muted-foreground">{c.descricao}</span>
+                  </Opcao>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">Nenhum marcado = todos</p>
+            </Grupo>
+
+            {isAdminOuTI && gestores.length > 0 && (
+              <Grupo titulo="Por gestor" acoes={gestorIds.size > 0 && <Lk apagado onClick={() => setGestorIds(new Set())}>limpar</Lk>}>
+                <div className="flex max-h-32 flex-col gap-1.5 overflow-auto">
+                  {gestores.map((u) => (
+                    <Opcao key={u.id} checked={gestorIds.has(u.id)} onChange={() => escolherGestor(u.id)}>
                       {u.nome}
-                    </label>
+                    </Opcao>
                   ))}
                 </div>
-                {gestoresSelecionados.length > 0 && (
-                  <p className="mt-1.5 text-xs text-muted-foreground">
-                    {ccsDoGestores.length === 0
-                      ? 'Gestores selecionados não gerenciam nenhum CC'
-                      : `Auto-selecionados: ${ccsDoGestores.join(', ')}`}
-                  </p>
-                )}
-              </div>
+                <p className="text-xs text-muted-foreground">Marca os CRs do gestor</p>
+              </Grupo>
             )}
 
-            <div className="grid gap-4">
-              {/* CCs */}
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <Label>Centros de Custo</Label>
-                  <div className="flex gap-2 text-xs">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        selectAll(
-                          contratos.map((c) => c.centro_custo),
-                          setCcsSel,
-                        )
-                      }
-                      className="text-primary hover:underline"
-                    >
-                      todos
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => clearAll(setCcsSel)}
-                      className="text-muted-foreground hover:underline"
-                    >
-                      limpar
-                    </button>
-                  </div>
-                </div>
-                <div className="max-h-44 space-y-0.5 overflow-auto rounded-md border p-2">
-                  {contratos.length === 0 && (
-                    <p className="px-1 py-2 text-xs text-muted-foreground">
-                      Nenhum CC disponível
-                    </p>
-                  )}
-                  {contratos.map((c) => (
-                    <label
-                      key={c.centro_custo}
-                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/50"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={ccsSel.has(c.centro_custo)}
-                        onChange={() =>
-                          toggleSet(ccsSel, c.centro_custo, setCcsSel)
-                        }
-                      />
-                      <span className="font-medium">{c.centro_custo}</span>
-                      <span className="truncate text-xs text-muted-foreground">
-                        {c.descricao}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Vazio = todos visíveis
-                </p>
+            <Grupo
+              titulo="Localização"
+              acoes={localizacoesSel.size > 0 && <Lk apagado onClick={() => setLocalizacoesSel(new Set())}>limpar</Lk>}
+            >
+              <Input
+                placeholder="Buscar local…"
+                value={locSearch}
+                onChange={(e) => setLocSearch(e.target.value)}
+                className="h-8 text-xs"
+              />
+              <div className="flex max-h-36 flex-col gap-1.5 overflow-auto">
+                {locsVisiveis.map((l) => (
+                  <Opcao key={l} checked={localizacoesSel.has(l)} onChange={() => alternar(localizacoesSel, l, setLocalizacoesSel)}>
+                    <span className={cn(l === SEM_LOCALIZACAO && 'italic text-muted-foreground')}>{l}</span>
+                  </Opcao>
+                ))}
               </div>
+              <p className="text-xs text-muted-foreground">Nenhum marcado = todos</p>
+            </Grupo>
+          </div>
 
-              {/* Localização */}
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <Label>Localização</Label>
-                  <div className="flex gap-2 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        clearAll(setLocalizacoesSel)
-                        setLocSearch('')
-                      }}
-                      className="text-primary hover:underline"
-                    >
-                      todas
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        selectAll(todasLocalizacoes, setLocalizacoesSel)
-                      }
-                      className="text-muted-foreground hover:underline"
-                    >
-                      limpar
-                    </button>
-                  </div>
-                </div>
-                <Input
-                  placeholder="Pesquisar…"
-                  value={locSearch}
-                  onChange={(e) => setLocSearch(e.target.value)}
-                  className="mb-1 h-7 text-xs"
-                />
-                <div className="max-h-36 space-y-0.5 overflow-auto rounded-md border p-2">
-                  {todasLocalizacoes.length === 0 && (
-                    <p className="px-1 py-2 text-xs text-muted-foreground">
-                      Nenhuma localização cadastrada
-                    </p>
-                  )}
-                  {locsFiltradas.map((loc) => (
-                    <label
-                      key={loc}
-                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/50"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={
-                          localizacoesSel.size === 0 ||
-                          localizacoesSel.has(loc)
-                        }
-                        onChange={() => {
-                          if (localizacoesSel.size === 0) {
-                            // Sair do modo "todas" excluindo apenas esta
-                            const todas = new Set(todasLocalizacoes)
-                            todas.delete(loc)
-                            setLocalizacoesSel(todas)
-                          } else {
-                            toggleSet(localizacoesSel, loc, setLocalizacoesSel)
-                          }
-                        }}
-                      />
-                      <span
-                        className={
-                          loc === SEM_LOCALIZACAO
-                            ? 'italic text-muted-foreground'
-                            : ''
-                        }
-                      >
-                        {loc}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Vazio = todas visíveis
-                </p>
+          <div className="lg:sticky lg:top-4">
+            {filtrados.length === 0 ? (
+              <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+                Nenhum equipamento nesse recorte.
               </div>
-
-              {/* Status */}
-              <div>
-                <Label className="mb-2 block">Status</Label>
-                <div className="space-y-0.5 rounded-md border p-2">
-                  {STATUSES.map((s) => (
-                    <label
-                      key={s}
-                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/50"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={statusSel.has(s)}
-                        onChange={() => toggleSet(statusSel, s, setStatusSel)}
-                      />
-                      {s}
-                    </label>
-                  ))}
-                </div>
+            ) : (
+              <div className="max-h-[calc(100vh-9rem)] overflow-auto rounded-lg border bg-white px-6 py-[22px] shadow-sm">
+                {folha}
               </div>
-
-              {/* Tipos */}
-              <div>
-                <Label className="mb-2 block">Tipos</Label>
-                <div className="space-y-0.5 rounded-md border p-2">
-                  {tiposNomes.map((t) => (
-                    <label
-                      key={t}
-                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/50"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={tiposSel.has(t)}
-                        onChange={() => toggleSet(tiposSel, t, setTiposSel)}
-                      />
-                      {t}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
+            )}
           </div>
-        </section>
-
-        {/* Agrupamento */}
-        <section className="rounded-lg border bg-card">
-          <header className="flex items-center gap-2 border-b px-4 py-2.5">
-            <Layers className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">Agrupar por</h2>
-          </header>
-          <div className="flex flex-wrap gap-2 p-4">
-            {AGRUPAMENTOS.map((a) => (
-              <button
-                key={a.key}
-                type="button"
-                onClick={() => setAgrupamento(a.key)}
-                className={`rounded-full border px-3 py-1 text-sm transition-colors ${
-                  agrupamento === a.key
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border bg-background hover:bg-muted'
-                }`}
-              >
-                {a.label}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Colunas */}
-        <section className="rounded-lg border bg-card">
-          <header className="flex items-center justify-between border-b px-4 py-2.5">
-            <div className="flex items-center gap-2">
-              <Columns3 className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">Colunas</h2>
-            </div>
-            <div className="flex gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() =>
-                  selectAll(
-                    COLUNAS.map((c) => c.key),
-                    setColunasSel,
-                  )
-                }
-                className="text-primary hover:underline"
-              >
-                todas
-              </button>
-              <button
-                type="button"
-                onClick={() => clearAll(setColunasSel)}
-                className="text-muted-foreground hover:underline"
-              >
-                limpar
-              </button>
-            </div>
-          </header>
-          <div className="grid grid-cols-2 gap-2 p-4">
-            {COLUNAS.map((c) => (
-              <label
-                key={c.key}
-                className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/50"
-              >
-                <input
-                  type="checkbox"
-                  checked={colunasSel.has(c.key)}
-                  onChange={() => toggleSet(colunasSel, c.key, setColunasSel)}
-                />
-                {c.label}
-              </label>
-            ))}
-          </div>
-        </section>
-
-        </div>
-
-        <div className="space-y-3 lg:sticky lg:top-4">
-        {/* Resumo */}
-        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-4 py-3 text-sm">
-          <span>
-            <strong>{filtrados.length}</strong> equipamento(s) ·{' '}
-            <strong>{agrupado.length}</strong> grupo(s) · por{' '}
-            <strong>{agrupLabel}</strong>
-          </span>
-          {chips.length > 0 && (
-            <div className="flex flex-wrap gap-1 sm:ml-auto">
-              {chips.map((c, i) => (
-                <Badge key={i} variant="secondary" className="text-xs">
-                  {c.label}: {c.value}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Prévia: exatamente o que sai na impressão, atualizada a cada escolha */}
-        {agrupado.length === 0 ? (
-          <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
-            Nenhum equipamento com essas escolhas.
-          </div>
-        ) : (
-          <div className="max-h-[calc(100vh-12rem)] overflow-auto rounded-xl border bg-white p-6 text-black shadow-sm">
-            {folha}
-          </div>
-        )}
-        </div>
         </div>
       </div>
 
-      {/* PDF (somente impressão) */}
-      <div className="hidden bg-white p-6 text-black print:block">{folha}</div>
+      <div className="hidden bg-white print:block">{folha}</div>
     </>
   )
 }

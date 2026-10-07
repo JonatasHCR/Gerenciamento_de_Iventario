@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ChevronLeft, ChevronRight, LogOut, Settings } from 'lucide-react'
+import { ChevronLeft, ChevronRight, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
@@ -139,19 +139,6 @@ export function Sidebar() {
               </span>
             )}
           </button>
-        )}
-        {user?.tipo === 'Admin' && (
-          <Button
-            variant="ghost"
-            size={collapsed ? 'icon' : 'sm'}
-            className="w-full text-muted-foreground hover:text-foreground"
-            asChild
-          >
-            <Link href="/administracao">
-              <Settings className="h-4 w-4" />
-              {!collapsed && <span className="ml-2">Administração</span>}
-            </Link>
-          </Button>
         )}
         <TrocarSistema collapsed={collapsed} />
         <Button
