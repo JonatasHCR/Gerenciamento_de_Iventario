@@ -22,11 +22,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
+import Link from 'next/link'
+import { BarraSituacao, useResumoPor } from '@/components/app/distribuicao'
 
 export default function LocalizacoesPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
   const [locs, setLocs] = useState<Localizacao[]>([])
+  const resumo = useResumoPor('localizacao')
   const [loading, setLoading] = useState(true)
 
   const [open, setOpen] = useState(false)
@@ -122,19 +125,20 @@ export default function LocalizacoesPage() {
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-2 text-left font-medium">Nome</th>
               <th className="px-4 py-2 text-left font-medium">Descrição</th>
+              <th className="w-56 px-4 py-2 text-left font-medium">Equipamentos</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
                   Carregando…
                 </td>
               </tr>
             ) : locs.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
                   Nenhuma localização cadastrada.
                 </td>
               </tr>
@@ -144,6 +148,20 @@ export default function LocalizacoesPage() {
                   <td className="px-4 py-2 font-medium">{l.nome}</td>
                   <td className="px-4 py-2 text-muted-foreground">
                     {l.descricao || '—'}
+                  </td>
+                  <td className="px-4 py-2">
+                    <Link
+                      href={`/equipamentos?localizacao=${encodeURIComponent(l.nome)}`}
+                      className="block space-y-1 hover:underline"
+                      title="Ver os equipamentos deste local"
+                    >
+                      <span className="text-sm tabular-nums">
+                        {resumo(l.nome).total}
+                        {resumo(l.nome)['Em Manutenção'] > 0 &&
+                          ` · ${resumo(l.nome)['Em Manutenção']} em manutenção`}
+                      </span>
+                      <BarraSituacao c={resumo(l.nome)} />
+                    </Link>
                   </td>
                   <td className="px-4 py-2">
                     <div className="flex justify-end gap-1">

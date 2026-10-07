@@ -8,8 +8,8 @@ import { getUsers } from '@/lib/api/users'
 import type { User } from '@/types/api'
 import { formatDate } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { SearchableSelect } from '@/components/app/searchable-select'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ChevronLeft, ChevronRight, RefreshCw, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 
 const ACTIONS = [
   { value: '', label: 'Todas' },
@@ -206,25 +206,16 @@ export default function AuditoriaPage() {
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">User ID (autor)</Label>
-          <div className="flex gap-1">
-            <Input
-              type="number"
-              value={filtroUserId}
-              onChange={(e) => setFiltroUserId(e.target.value)}
-              placeholder="ID do usuário"
-            />
-            {filtroUserId && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setFiltroUserId('')}
-                className="shrink-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
+          <Label className="text-xs">Autor</Label>
+          <SearchableSelect
+            value={filtroUserId}
+            onChange={setFiltroUserId}
+            options={[
+              { value: '', label: 'Todas as pessoas' },
+              ...users.map((u) => ({ value: String(u.id), label: u.nome, searchKey: `${u.nome} ${u.email}` })),
+            ]}
+            placeholder="Todas as pessoas"
+          />
         </div>
       </div>
 

@@ -33,6 +33,9 @@ export interface EletronicoQuery {
   centro_custo?: string[]
   status?: string[]
   tipo?: string[]
+  localizacao?: string[]
+  ordem?: string
+  desc?: boolean
   page?: number
   page_size?: number
 }
@@ -55,6 +58,9 @@ function buildQueryString(query?: EletronicoQuery): string {
   query.centro_custo?.forEach((v) => params.append('centro_custo', v))
   query.status?.forEach((v) => params.append('status', v))
   query.tipo?.forEach((v) => params.append('tipo', v))
+  query.localizacao?.forEach((v) => params.append('localizacao', v))
+  if (query.ordem) params.append('ordem', query.ordem)
+  if (query.desc) params.append('desc', 'true')
   if (query.page) params.append('page', String(query.page))
   if (query.page_size) params.append('page_size', String(query.page_size))
   const s = params.toString()

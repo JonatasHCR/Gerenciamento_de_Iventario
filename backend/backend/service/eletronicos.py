@@ -27,6 +27,27 @@ CAMPOS_BUSCA_VALIDOS = {
 }
 
 
+# Colunas que a lista pode ordenar; qualquer outro valor cai em 'recentes'.
+COLUNAS_DE_ORDEM = {
+    'numero_patrimonio': Eletronico.numero_patrimonio,
+    'nome': Eletronico.nome,
+    'tipo': Eletronico.tipo,
+    'status': Eletronico.status,
+    'centro_custo': Eletronico.centro_custo,
+    'localizacao': Eletronico.localizacao,
+}
+
+
+def _ordenar(query, ordem: str, desc: bool):
+    coluna = COLUNAS_DE_ORDEM.get(ordem)
+    if coluna is None:
+        return query.order_by(Eletronico.id.desc())
+    # O id desempata: sem ele, linhas iguais trocam de página.
+    return query.order_by(
+        coluna.desc() if desc else coluna.asc(), Eletronico.id.asc()
+    )
+
+
 class EletronicoService:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -89,6 +110,9 @@ class EletronicoService:
         centros_custo: list[str] | None = None,
         statuses: list[str] | None = None,
         tipos: list[str] | None = None,
+        localizacoes: list[str] | None = None,
+        ordem: str = 'recentes',
+        desc: bool = False,
         page: int = 1,
         page_size: int = 50,
     ) -> tuple[list[Eletronico], int, int]:
@@ -152,8 +176,10 @@ class EletronicoService:
             query = query.where(Eletronico.status.in_(statuses))
         if tipos:
             query = query.where(Eletronico.tipo.in_(tipos))
+        if localizacoes:
+            query = query.where(Eletronico.localizacao.in_(localizacoes))
 
-        query = query.order_by(Eletronico.id.desc())
+        query = _ordenar(query, ordem, desc)
 
         items, total, pages = await paginate(
             self.session, query, page, page_size

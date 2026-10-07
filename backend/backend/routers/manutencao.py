@@ -41,6 +41,11 @@ class LimpezaCreate(BaseModel):
     )
 
 
+class ContagemCreate(BaseModel):
+    alvo: str
+    centro_custo: str | None = None
+
+
 class RestauracaoCreate(BaseModel):
     nome: str
     confirmacao: str = Field(
@@ -155,6 +160,27 @@ async def limpar(
     return {
         'mensagem': f'{total} registro(s) removido(s).',
         'detalhes': removidos,
+    }
+
+
+@router_manutencao.post(
+    '/contagem', status_code=HTTPStatus.OK, response_model=ResultadoRead
+)
+async def contar(
+    dados: ContagemCreate, session: T_AsyncSession, ctx: T_UserContext
+):
+    """O 'Contar antes' da tela: quanto a limpeza apagaria. Não apaga nada."""
+    _so_admin(ctx)
+    try:
+        contagem = await ManutencaoService(session).contar(
+            dados.alvo, centro_custo=dados.centro_custo
+        )
+    except ErroDeManutencao as e:
+        raise HTTPException(HTTPStatus.BAD_REQUEST, str(e))
+    total = sum(contagem.values())
+    return {
+        'mensagem': f'{total} registro(s) seriam removidos.',
+        'detalhes': contagem,
     }
 
 

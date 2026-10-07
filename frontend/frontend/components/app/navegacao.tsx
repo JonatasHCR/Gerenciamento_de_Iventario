@@ -6,13 +6,11 @@ import {
   Boxes,
   Building2,
   ClipboardList,
-  Factory,
   FileText,
   History,
   LayoutDashboard,
   MapPin,
   Monitor,
-  Tags,
   Users,
   type LucideIcon,
 } from 'lucide-react'
@@ -48,9 +46,7 @@ const GRUPOS: [string, Item[]][] = [
     'Cadastros',
     [
       { href: '/usuarios', label: 'Usuários', icon: Users },
-      { href: '/tipos', label: 'Tipos', icon: Tags, so: 'admin' },
-      { href: '/marcas', label: 'Marcas', icon: Factory, so: 'admin' },
-      { href: '/modelos', label: 'Modelos', icon: Boxes, so: 'admin' },
+      { href: '/catalogo', label: 'Tipos e modelos', icon: Boxes, so: 'admin' },
       { href: '/localizacoes', label: 'Localizações', icon: MapPin, so: 'admin' },
     ],
   ],
@@ -58,6 +54,7 @@ const GRUPOS: [string, Item[]][] = [
 ]
 
 function ativo(pathname: string, href: string) {
+  if (href === '/catalogo' && ['/tipos', '/marcas', '/modelos'].includes(pathname)) return true
   return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/')
 }
 

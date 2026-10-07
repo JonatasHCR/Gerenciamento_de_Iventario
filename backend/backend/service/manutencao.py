@@ -297,6 +297,37 @@ class ManutencaoService:
                     destino.write(linha)
             return Path(destino.name)
 
+    def _comandos(self, alvo: str, centro_custo: str | None, verbo: str):
+        """As mesmas tabelas e o mesmo filtro para contar e para apagar."""
+        config = ALVOS.get(alvo)
+        if config is None:
+            raise ErroDeManutencao(f'Alvo de limpeza inválido: {alvo!r}.')
+        cc = (centro_custo or '').strip() or None
+        if cc and not config['aceita_cc']:
+            raise ErroDeManutencao(
+                f'O alvo "{config["rotulo"]}" não aceita filtro por centro de custo.'
+            )
+        for tabela in config['tabelas']:
+            if cc and tabela in FILTRO_POR_CC:
+                yield tabela, text(
+                    f'{verbo} FROM {tabela} WHERE {FILTRO_POR_CC[tabela]}'
+                ), {'cc': cc}
+            elif not cc:
+                yield tabela, text(f'{verbo} FROM {tabela}'), {}
+
+    async def contar(
+        self, alvo: str, centro_custo: str | None = None
+    ) -> dict[str, int]:
+        """Quanto a limpeza apagaria, sem apagar nada."""
+        contagem: dict[str, int] = {}
+        for tabela, comando, parametros in self._comandos(
+            alvo, centro_custo, 'SELECT COUNT(*)'
+        ):
+            contagem[tabela] = (
+                await self.session.execute(comando, parametros)
+            ).scalar_one()
+        return contagem
+
     async def limpar(
         self, alvo: str, centro_custo: str | None = None
     ) -> dict[str, int]:

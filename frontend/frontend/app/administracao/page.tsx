@@ -7,6 +7,9 @@ import { AlertTriangle, Database, Download, Loader, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/auth-context';
+import { SearchableSelect } from '@/components/app/searchable-select';
+import { getContratos } from '@/lib/api/contratos';
+import type { Contrato } from '@/types/api';
 
 /**
  * Administração: backup, restauração e limpeza.
@@ -28,6 +31,11 @@ interface Alvo {
   chave: string;
   rotulo: string;
   aceita_cc: boolean;
+}
+
+/** O botão grava "inventario-…"; o sidecar agendado, "backup_…". */
+function origem(nome: string): 'manual' | 'automático' {
+  return nome.startsWith('inventario-') ? 'manual' : 'automático';
 }
 
 function tamanho(bytes: number): string {
@@ -62,6 +70,8 @@ export default function AdministracaoPage() {
 
   const [arquivo, setArquivo] = useState('');
   const [confirmaRestauracao, setConfirmaRestauracao] = useState('');
+  const [contratos, setContratos] = useState<Contrato[]>([]);
+  const [contagem, setContagem] = useState<{ texto: string; detalhes: Record<string, number> } | null>(null);
 
   const recarregar = useCallback(async () => {
     const [lista, opcoes] = await Promise.all([
@@ -79,6 +89,7 @@ export default function AdministracaoPage() {
       router.replace('/');
       return;
     }
+    getContratos().then(setContratos).catch(() => {});
     recarregar()
       .catch((e) => setAviso({ tipo: 'erro', texto: e.message }))
       .finally(() => setCarregando(false));
@@ -110,7 +121,7 @@ export default function AdministracaoPage() {
   const alvoAtual = alvos.find((a) => a.chave === alvo);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 py-2">
+    <div className="mx-auto max-w-6xl space-y-6 py-2">
       <header>
         <h1 className="text-xl font-semibold">Administração</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -130,8 +141,9 @@ export default function AdministracaoPage() {
         </p>
       )}
 
+      <div className="grid items-start gap-5 lg:grid-cols-[1.2fr_1fr]">
       {/* ── Backup ─────────────────────────────────────────────────────── */}
-      <section className="rounded-xl border p-5">
+      <section className="rounded-xl border bg-card p-5 shadow-xs">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="flex items-center gap-2 font-medium">
@@ -161,8 +173,15 @@ export default function AdministracaoPage() {
           {backups.map((b) => (
             <li key={b.nome} className="flex items-center justify-between gap-3 py-2">
               <div className="min-w-0">
-                <p className="truncate font-medium">{b.nome}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="truncate font-mono text-[13px]">{b.nome}</p>
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span
+                    className={`rounded-full px-2 py-0.5 font-medium ${
+                      origem(b.nome) === 'manual' ? 'bg-info-bg text-info' : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {origem(b.nome)}
+                  </span>
                   {new Date(b.criado_em).toLocaleString('pt-BR')} · {tamanho(b.bytes)}
                 </p>
               </div>
@@ -177,8 +196,9 @@ export default function AdministracaoPage() {
         </ul>
       </section>
 
+      <div className="space-y-5">
       {/* ── Limpeza ────────────────────────────────────────────────────── */}
-      <section className="rounded-xl border border-destructive/30 p-5">
+      <section className="rounded-xl border border-destructive/30 bg-card p-5 shadow-xs">
         <h2 className="flex items-center gap-2 font-medium text-destructive">
           <Trash2 className="h-4 w-4" /> Limpeza de dados
         </h2>
@@ -192,7 +212,10 @@ export default function AdministracaoPage() {
             <span className="text-sm font-medium">O que apagar</span>
             <select
               value={alvo}
-              onChange={(e) => setAlvo(e.target.value)}
+              onChange={(e) => {
+                setAlvo(e.target.value);
+                setContagem(null);
+              }}
               className="mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm"
             >
               {alvos.map((a) => (
@@ -206,12 +229,23 @@ export default function AdministracaoPage() {
           {alvoAtual?.aceita_cc && (
             <label className="block">
               <span className="text-sm font-medium">Centro de custo (opcional)</span>
-              <Input
-                value={centroCusto}
-                onChange={(e) => setCentroCusto(e.target.value)}
-                placeholder="deixe vazio para todos"
-                className="mt-1"
-              />
+              <div className="mt-1">
+                <SearchableSelect
+                  value={centroCusto}
+                  onChange={(v) => {
+                    setCentroCusto(v);
+                    setContagem(null);
+                  }}
+                  options={[
+                    { value: '', label: 'Todos os centros de custo' },
+                    ...contratos.map((c) => ({
+                      value: c.centro_custo,
+                      label: `${c.centro_custo} · ${c.descricao}`,
+                    })),
+                  ]}
+                  placeholder="Todos os centros de custo"
+                />
+              </div>
             </label>
           )}
 
@@ -228,6 +262,37 @@ export default function AdministracaoPage() {
           </label>
         </div>
 
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={ocupado !== null || !alvo}
+            onClick={async () => {
+              try {
+                const r = await api<{ mensagem: string; detalhes: Record<string, number> }>('/contagem', {
+                  method: 'POST',
+                  body: JSON.stringify({ alvo, centro_custo: alvoAtual?.aceita_cc ? centroCusto || null : null }),
+                });
+                setContagem({ texto: r.mensagem, detalhes: r.detalhes ?? {} });
+              } catch (e) {
+                setAviso({ tipo: 'erro', texto: e instanceof Error ? e.message : 'Falhou.' });
+              }
+            }}
+          >
+            Contar antes
+          </Button>
+          {contagem && (
+            <span className="text-sm">
+              <strong className="text-destructive">{contagem.texto}</strong>
+              <span className="ml-1 text-xs text-muted-foreground">
+                {Object.entries(contagem.detalhes)
+                  .filter(([, n]) => n > 0)
+                  .map(([t, n]) => `${t.replace(/^tb_/, '').replace(/_/g, ' ')}: ${n}`)
+                  .join(' · ')}
+              </span>
+            </span>
+          )}
+        </div>
         <Button
           variant="destructive"
           className="mt-4"
@@ -252,7 +317,7 @@ export default function AdministracaoPage() {
       </section>
 
       {/* ── Restauração ────────────────────────────────────────────────── */}
-      <section className="rounded-xl border border-destructive/30 p-5">
+      <section className="rounded-xl border border-destructive/30 bg-card p-5 shadow-xs">
         <h2 className="flex items-center gap-2 font-medium text-destructive">
           <AlertTriangle className="h-4 w-4" /> Restauração
         </h2>
@@ -314,6 +379,8 @@ export default function AdministracaoPage() {
           {ocupado === 'restauracao' ? 'Restaurando…' : 'Restaurar'}
         </Button>
       </section>
+      </div>
+      </div>
     </div>
   );
 }

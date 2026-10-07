@@ -13,6 +13,7 @@ import {
 import { getContratos } from '@/lib/api/contratos'
 import {
   getAssociacoesContrato,
+  getAssociacoesEletronico,
   deleteAssociacaoContrato,
   updateAssociacaoContrato,
 } from '@/lib/api/associacoes'
@@ -61,6 +62,7 @@ export default function UsuariosPage() {
   const [users, setUsers] = useState<User[]>([])
   const [contratos, setContratos] = useState<Contrato[]>([])
   const [assocs, setAssocs] = useState<AssociacaoUserContrato[]>([])
+  const [comEquipamento, setComEquipamento] = useState<Map<number, number>>(new Map())
   const [search, setSearch] = useState('')
   const [campoBusca, setCampoBusca] = useState('todos')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -89,6 +91,13 @@ export default function UsuariosPage() {
     getUsers().then(setUsers).catch(() => {})
     getContratos().then(setContratos).catch(() => {})
     getAssociacoesContrato().then(setAssocs).catch(() => {})
+    getAssociacoesEletronico()
+      .then((l) => {
+        const m = new Map<number, number>()
+        l.forEach((a) => m.set(a.user_id, (m.get(a.user_id) ?? 0) + 1))
+        setComEquipamento(m)
+      })
+      .catch(() => {})
   }
 
   useEffect(() => { load() }, [])
@@ -375,6 +384,11 @@ export default function UsuariosPage() {
                       <p className="text-xs text-muted-foreground">{u.email}</p>
                     </div>
                     <div className="flex items-center gap-2">
+                      {(comEquipamento.get(u.id) ?? 0) > 0 && (
+                        <span className="text-xs text-muted-foreground" title="Equipamentos sob responsabilidade">
+                          {comEquipamento.get(u.id)} equipamento(s)
+                        </span>
+                      )}
                       <Badge variant="secondary">{u.tipo}</Badge>
                       <Button
                         size="icon"

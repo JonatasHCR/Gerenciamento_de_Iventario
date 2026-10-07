@@ -32,8 +32,6 @@ import {
   Printer,
   Filter,
   Columns3,
-  ChevronDown,
-  ChevronRight,
   Layers,
   Search,
 } from 'lucide-react'
@@ -420,15 +418,97 @@ export default function RelatoriosPage() {
     },
   ].filter(Boolean) as { label: string; value: string }[]
 
+  const folha = (
+    <>
+        <div className="mb-4 flex items-start justify-between">
+          <div>
+            <h1 className="text-xl font-bold">{titulo}</h1>
+            <p className="text-xs">
+              Gerado em {new Date().toLocaleString('pt-BR')} ·{' '}
+              {filtrados.length} equipamento(s) · {agrupado.length} grupo(s) ·
+              por {agrupLabel}
+            </p>
+            {chips.length > 0 && (
+              <p className="mt-1 text-[10px]">
+                <strong>Filtros:</strong>{' '}
+                {chips.map((c) => `${c.label}: ${c.value}`).join(' · ')}
+              </p>
+            )}
+          </div>
+          <div className="text-right">
+            <div className="text-lg font-bold tracking-tight">UFC</div>
+            <div className="text-[10px] tracking-widest text-gray-600">
+              ENGENHARIA
+            </div>
+          </div>
+        </div>
+
+        {agrupado.map(([grupo, equips]) => {
+          const contrato =
+            agrupamento === 'centro_custo' ? contratoPorCc.get(grupo) : null
+          const nCols = colunasOrdenadas.length || 1
+          return (
+            <div key={grupo} className="mb-6">
+              <table className="w-full border-collapse text-[10px]">
+                <thead>
+                  <tr>
+                    <td
+                      colSpan={nCols}
+                      className="border border-black bg-gray-800 px-1.5 py-0.5 text-left font-bold text-white"
+                    >
+                      {agrupamento === 'centro_custo' ? 'CC ' : ''}
+                      {grupo}
+                      {contrato && (
+                        <span className="ml-1 font-normal text-gray-300">
+                          — {contrato.descricao}
+                        </span>
+                      )}
+                      <span className="float-right font-normal text-gray-300">
+                        {equips.length} equipamento(s)
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    {colunasOrdenadas.map((c) => (
+                      <th
+                        key={c.key}
+                        className="border border-black bg-gray-200 px-1 py-0.5 text-left"
+                      >
+                        {c.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {equips.map((e) => (
+                    <tr key={e.id} className="break-inside-avoid">
+                      {colunasOrdenadas.map((c) => (
+                        <td
+                          key={c.key}
+                          className="border border-black px-1 py-0.5"
+                        >
+                          {getCellValue(e, c.key) || '—'}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        })}
+    </>
+  )
+
   return (
     <>
-      <div className="space-y-6 print:hidden">
+      <div className="space-y-5 print:hidden">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">Relatórios</h1>
             <p className="text-sm text-muted-foreground">
-              Configure os filtros, escolha as colunas e exporte
+              Marque à esquerda; a folha ao lado é o que sai impresso e muda na hora
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -443,6 +523,8 @@ export default function RelatoriosPage() {
           </div>
         </div>
 
+        <div className="grid items-start gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="space-y-4">
         {/* Filtros */}
         <section className="rounded-lg border bg-card">
           <header className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
@@ -458,7 +540,7 @@ export default function RelatoriosPage() {
               disabled={loadingData}
             >
               <Search className="mr-1.5 h-3.5 w-3.5" />
-              {loadingData ? 'Buscando…' : 'Buscar no servidor'}
+              {loadingData ? 'Recarregando…' : 'Recarregar'}
             </Button>
           </header>
           <div className="space-y-4 p-4">
@@ -526,7 +608,7 @@ export default function RelatoriosPage() {
               </div>
             )}
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4">
               {/* CCs */}
               <div>
                 <div className="mb-2 flex items-center justify-between">
@@ -756,7 +838,7 @@ export default function RelatoriosPage() {
               </button>
             </div>
           </header>
-          <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 p-4">
             {COLUNAS.map((c) => (
               <label
                 key={c.key}
@@ -773,6 +855,9 @@ export default function RelatoriosPage() {
           </div>
         </section>
 
+        </div>
+
+        <div className="space-y-3 lg:sticky lg:top-4">
         {/* Resumo */}
         <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-4 py-3 text-sm">
           <span>
@@ -791,182 +876,22 @@ export default function RelatoriosPage() {
           )}
         </div>
 
-        {/* Preview agrupado */}
+        {/* Prévia: exatamente o que sai na impressão, atualizada a cada escolha */}
         {agrupado.length === 0 ? (
-          <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">
-            Ajuste os filtros para ver resultados.
+          <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
+            Nenhum equipamento com essas escolhas.
           </div>
         ) : (
-          <div className="space-y-3">
-            {agrupado.map(([grupo, equips]) => {
-              const descricao =
-                agrupamento === 'centro_custo'
-                  ? contratoPorCc.get(grupo)?.descricao
-                  : undefined
-              return (
-                <GrupoRelatorio
-                  key={grupo}
-                  titulo={grupo}
-                  descricao={descricao}
-                  equips={equips}
-                  colunas={colunasOrdenadas}
-                  getCellValue={getCellValue}
-                />
-              )
-            })}
+          <div className="max-h-[calc(100vh-12rem)] overflow-auto rounded-xl border bg-white p-6 text-black shadow-sm">
+            {folha}
           </div>
         )}
+        </div>
+        </div>
       </div>
 
       {/* PDF (somente impressão) */}
-      <div className="hidden bg-white p-6 text-black print:block">
-        <div className="mb-4 flex items-start justify-between">
-          <div>
-            <h1 className="text-xl font-bold">{titulo}</h1>
-            <p className="text-xs">
-              Gerado em {new Date().toLocaleString('pt-BR')} ·{' '}
-              {filtrados.length} equipamento(s) · {agrupado.length} grupo(s) ·
-              por {agrupLabel}
-            </p>
-            {chips.length > 0 && (
-              <p className="mt-1 text-[10px]">
-                <strong>Filtros:</strong>{' '}
-                {chips.map((c) => `${c.label}: ${c.value}`).join(' · ')}
-              </p>
-            )}
-          </div>
-          <div className="text-right">
-            <div className="text-lg font-bold tracking-tight">UFC</div>
-            <div className="text-[10px] tracking-widest text-gray-600">
-              ENGENHARIA
-            </div>
-          </div>
-        </div>
-
-        {agrupado.map(([grupo, equips]) => {
-          const contrato =
-            agrupamento === 'centro_custo' ? contratoPorCc.get(grupo) : null
-          const nCols = colunasOrdenadas.length || 1
-          return (
-            <div key={grupo} className="mb-6">
-              <table className="w-full border-collapse text-[10px]">
-                <thead>
-                  <tr>
-                    <td
-                      colSpan={nCols}
-                      className="border border-black bg-gray-800 px-1.5 py-0.5 text-left font-bold text-white"
-                    >
-                      {agrupamento === 'centro_custo' ? 'CC ' : ''}
-                      {grupo}
-                      {contrato && (
-                        <span className="ml-1 font-normal text-gray-300">
-                          — {contrato.descricao}
-                        </span>
-                      )}
-                      <span className="float-right font-normal text-gray-300">
-                        {equips.length} equipamento(s)
-                      </span>
-                    </td>
-                  </tr>
-                  <tr>
-                    {colunasOrdenadas.map((c) => (
-                      <th
-                        key={c.key}
-                        className="border border-black bg-gray-200 px-1 py-0.5 text-left"
-                      >
-                        {c.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {equips.map((e) => (
-                    <tr key={e.id} className="break-inside-avoid">
-                      {colunasOrdenadas.map((c) => (
-                        <td
-                          key={c.key}
-                          className="border border-black px-1 py-0.5"
-                        >
-                          {getCellValue(e, c.key) || '—'}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
-        })}
-      </div>
+      <div className="hidden bg-white p-6 text-black print:block">{folha}</div>
     </>
-  )
-}
-
-function GrupoRelatorio({
-  titulo,
-  descricao,
-  equips,
-  colunas,
-  getCellValue,
-}: {
-  titulo: string
-  descricao?: string
-  equips: Eletronico[]
-  colunas: { key: ColKey; label: string }[]
-  getCellValue: (e: Eletronico, key: ColKey) => string
-}) {
-  const [aberto, setAberto] = useState(true)
-  return (
-    <div className="rounded-md border bg-card">
-      <button
-        type="button"
-        onClick={() => setAberto(!aberto)}
-        className="flex w-full items-center justify-between border-b px-4 py-2.5 text-left hover:bg-muted/50"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          {aberto ? (
-            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-          )}
-          <Badge variant="default">{titulo}</Badge>
-          {descricao && (
-            <span className="text-sm text-muted-foreground">{descricao}</span>
-          )}
-        </div>
-        <span className="ml-2 shrink-0 text-xs text-muted-foreground">
-          {equips.length} equipamento(s)
-        </span>
-      </button>
-      {aberto && colunas.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px] text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                {colunas.map((c) => (
-                  <th
-                    key={c.key}
-                    className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
-                  >
-                    {c.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {equips.map((e) => (
-                <tr key={e.id} className="border-b last:border-0">
-                  {colunas.map((c) => (
-                    <td key={c.key} className="px-3 py-2">
-                      {getCellValue(e, c.key) || '—'}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
   )
 }

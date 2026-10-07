@@ -44,6 +44,15 @@ async def get(  # noqa: PLR0913, PLR0917
     centro_custo: list[str] | None = Query(None),
     status: list[str] | None = Query(None),
     tipo: list[str] | None = Query(None),
+    localizacao: list[str] | None = Query(None),
+    ordem: str = Query(
+        'recentes',
+        description=(
+            'recentes, numero_patrimonio, nome, tipo, status, '
+            'centro_custo ou localizacao'
+        ),
+    ),
+    desc: bool = Query(False),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=1000),
 ):
@@ -55,6 +64,9 @@ async def get(  # noqa: PLR0913, PLR0917
         centros_custo=centro_custo,
         statuses=status,
         tipos=tipo,
+        localizacoes=localizacao,
+        ordem=ordem,
+        desc=desc,
         page=page,
         page_size=page_size,
     )

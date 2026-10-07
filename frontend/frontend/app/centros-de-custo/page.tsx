@@ -37,7 +37,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Pencil, Trash2, Users, LogOut, UserPlus } from 'lucide-react'
+import { Plus, Pencil, Trash2, Users, LogOut, UserPlus, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
+import { BarraSituacao, useResumoPor } from '@/components/app/distribuicao'
 
 const OCUPACOES: Ocupacao[] = ['Gestor', 'Subgestor', 'Funcionario']
 
@@ -59,6 +61,7 @@ export default function CentrosDeCustoPage() {
   const [editDesc, setEditDesc] = useState('')
 
   const [openEntrada, setOpenEntrada] = useState<string | null>(null)
+  const resumo = useResumoPor('centro_custo')
   const [cargoEntrada, setCargoEntrada] = useState<Ocupacao>('Funcionario')
 
   const load = () => {
@@ -296,6 +299,21 @@ export default function CentrosDeCustoPage() {
                   )}
                 </div>
               </div>
+              <Link
+                href={`/equipamentos?centro_custo=${encodeURIComponent(c.centro_custo)}`}
+                className="group block space-y-1.5 rounded-md border bg-muted/30 p-2.5 hover:border-ring"
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">
+                    <strong className="text-sm text-foreground">{resumo(c.centro_custo).total}</strong> equipamento(s)
+                    {resumo(c.centro_custo).Externo > 0 && ` · ${resumo(c.centro_custo).Externo} cedido(s)`}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-muted-foreground group-hover:text-foreground">
+                    Ver <ArrowRight className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+                <BarraSituacao c={resumo(c.centro_custo)} />
+              </Link>
               <div className="flex items-center justify-between border-t pt-2 text-sm">
                 <div>
                   <p className="text-xs text-muted-foreground">Gestor</p>
