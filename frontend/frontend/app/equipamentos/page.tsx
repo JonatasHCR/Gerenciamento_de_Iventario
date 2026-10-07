@@ -70,6 +70,7 @@ import {
   MapPin,
   Wrench,
   Undo2,
+  Download,
 } from 'lucide-react'
 import {
   Sheet,
@@ -83,6 +84,29 @@ import { StatusEquipamento, ROTULO_STATUS } from '@/components/app/status'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import { SearchableSelect } from '@/components/app/searchable-select'
+
+function Ordenavel({
+  col,
+  ordem,
+  onOrdenar,
+  children,
+}: {
+  col: string
+  ordem: { col: string; desc: boolean }
+  onOrdenar: (col: string) => void
+  children: React.ReactNode
+}) {
+  return (
+    <th
+      className="cursor-pointer select-none px-3 py-2 text-left font-medium hover:text-foreground"
+      onClick={() => onOrdenar(col)}
+      aria-sort={ordem.col === col ? (ordem.desc ? 'descending' : 'ascending') : undefined}
+    >
+      {children}
+      {ordem.col === col && <span className="ml-1 text-primary">{ordem.desc ? '↓' : '↑'}</span>}
+    </th>
+  )
+}
 
 function payloadDe(e: Eletronico): EletronicoPayload {
   return {
@@ -143,6 +167,9 @@ function EquipamentosConteudo() {
   const [filtroCC, setFiltroCC] = useState<string[]>(() => busca.getAll('centro_custo'))
   const [filtroStatus, setFiltroStatus] = useState<string[]>(() => busca.getAll('status'))
   const [filtroTipo, setFiltroTipo] = useState<string[]>(() => busca.getAll('tipo'))
+  const [filtroLocal, setFiltroLocal] = useState<string[]>(() => busca.getAll('localizacao'))
+  const [ordem, setOrdem] = useState<{ col: string; desc: boolean }>({ col: 'recentes', desc: false })
+  const [exportando, setExportando] = useState(false)
   const [modo, setModo] = useState<'tabela' | 'cartoes'>('tabela')
   const [marcados, setMarcados] = useState<Map<number, Eletronico>>(new Map())
   const [detalheId, setDetalheId] = useState<number | null>(() => Number(busca.get('id')) || null)
@@ -187,7 +214,7 @@ function EquipamentosConteudo() {
   // Reseta para página 1 quando filtros ou page size mudam
   useEffect(() => {
     setPage(1)
-  }, [searchDebounced, campoBusca, filtroCC, filtroStatus, filtroTipo, pageSize])
+  }, [searchDebounced, campoBusca, filtroCC, filtroStatus, filtroTipo, filtroLocal, ordem, pageSize])
 
   // Carrega dados quando filtros ou página mudam
   useEffect(() => {
@@ -198,6 +225,9 @@ function EquipamentosConteudo() {
       centro_custo: filtroCC.length ? filtroCC : undefined,
       status: filtroStatus.length ? filtroStatus : undefined,
       tipo: filtroTipo.length ? filtroTipo : undefined,
+      localizacao: filtroLocal.length ? filtroLocal : undefined,
+      ordem: ordem.col,
+      desc: ordem.desc,
       page,
       page_size: pageSize,
     })
@@ -208,7 +238,7 @@ function EquipamentosConteudo() {
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [searchDebounced, campoBusca, filtroCC, filtroStatus, filtroTipo, page, pageSize])
+  }, [searchDebounced, campoBusca, filtroCC, filtroStatus, filtroTipo, filtroLocal, ordem, page, pageSize])
 
   useEffect(() => {
     getContratos().then(setContratos).catch(() => {})
@@ -309,7 +339,55 @@ function EquipamentosConteudo() {
     user?.tipo === 'Gestor' ||
     user?.tipo === 'Subgestor'
 
-  const filtrosAtivos = filtroCC.length + filtroStatus.length + filtroTipo.length > 0 || search !== ''
+  const filtrosAtivos =
+    filtroCC.length + filtroStatus.length + filtroTipo.length + filtroLocal.length > 0 || search !== ''
+
+  function ordenarPor(col: string) {
+    setOrdem((o) => (o.col === col ? { col, desc: !o.desc } : { col, desc: false }))
+  }
+
+  /** CSV com tudo o que o filtro pega (todas as páginas), aberto direto no Excel. */
+  async function exportar() {
+    setExportando(true)
+    try {
+      const todos: Eletronico[] = []
+      for (let pg = 1; ; pg++) {
+        const r = await getEletronicosPaginated({
+          q: searchDebounced || undefined,
+          campo: campoBusca,
+          centro_custo: filtroCC.length ? filtroCC : undefined,
+          status: filtroStatus.length ? filtroStatus : undefined,
+          tipo: filtroTipo.length ? filtroTipo : undefined,
+          localizacao: filtroLocal.length ? filtroLocal : undefined,
+          ordem: ordem.col,
+          desc: ordem.desc,
+          page: pg,
+          page_size: 1000,
+        })
+        todos.push(...r.eletronicos)
+        if (pg >= r.pages) break
+      }
+      const cab = ['Patrimônio', 'Nome', 'Tipo', 'Marca', 'Modelo', 'Nº de série', 'Situação', 'CC', 'Localização', 'IP', 'Responsável']
+      const cel = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+      const linhas = todos.map((e) =>
+        [e.numero_patrimonio, e.nome, e.tipo, e.marca, e.modelo, e.numero_serie, ROTULO_STATUS[e.status],
+          e.centro_custo, e.localizacao, e.ip, responsavelDe(e)].map(cel).join(';'),
+      )
+      const blob = new Blob(['\ufeff' + [cab.map(cel).join(';'), ...linhas].join('\r\n')], {
+        type: 'text/csv;charset=utf-8',
+      })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `equipamentos-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000)
+      toast.success(`${todos.length} equipamento(s) exportado(s).`)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao exportar.')
+    } finally {
+      setExportando(false)
+    }
+  }
 
   async function handleCriarLocalizacao(e: React.FormEvent) {
     e.preventDefault()
@@ -448,6 +526,9 @@ function EquipamentosConteudo() {
       centro_custo: filtroCC.length ? filtroCC : undefined,
       status: filtroStatus.length ? filtroStatus : undefined,
       tipo: filtroTipo.length ? filtroTipo : undefined,
+      localizacao: filtroLocal.length ? filtroLocal : undefined,
+      ordem: ordem.col,
+      desc: ordem.desc,
       page,
       page_size: pageSize,
     })
@@ -555,6 +636,9 @@ function EquipamentosConteudo() {
               </Button>
             </Link>
           )}
+          <Button size="sm" variant="outline" onClick={exportar} disabled={exportando}>
+            <Download className="mr-1 h-4 w-4" /> {exportando ? 'Exportando…' : 'Exportar'}
+          </Button>
           {canWrite && (
             <Button size="sm" onClick={abrirNovo}>
               <Plus className="mr-1 h-4 w-4" /> Novo
@@ -611,6 +695,12 @@ function EquipamentosConteudo() {
           onChange={setFiltroStatus}
         />
         <FiltroMulti
+          titulo="Localização"
+          opcoes={localizacoes.map((l) => ({ value: l.nome, label: l.nome }))}
+          valor={filtroLocal}
+          onChange={setFiltroLocal}
+        />
+        <FiltroMulti
           titulo="Centro de custo"
           opcoes={contratos.map((c) => ({
             value: c.centro_custo,
@@ -628,6 +718,7 @@ function EquipamentosConteudo() {
               setFiltroCC([])
               setFiltroStatus([])
               setFiltroTipo([])
+              setFiltroLocal([])
             }}
           >
             Limpar
@@ -717,11 +808,11 @@ function EquipamentosConteudo() {
                   aria-label="Marcar a página"
                 />
               </th>
-              <th className="px-3 py-2 text-left font-medium">Patrimônio</th>
-              <th className="px-3 py-2 text-left font-medium">Equipamento</th>
-              <th className="px-3 py-2 text-left font-medium">Situação</th>
-              <th className="px-3 py-2 text-left font-medium">CC</th>
-              <th className="px-3 py-2 text-left font-medium">Localização</th>
+              <Ordenavel col="numero_patrimonio" ordem={ordem} onOrdenar={ordenarPor}>Patrimônio</Ordenavel>
+              <Ordenavel col="nome" ordem={ordem} onOrdenar={ordenarPor}>Equipamento</Ordenavel>
+              <Ordenavel col="status" ordem={ordem} onOrdenar={ordenarPor}>Situação</Ordenavel>
+              <Ordenavel col="centro_custo" ordem={ordem} onOrdenar={ordenarPor}>CC</Ordenavel>
+              <Ordenavel col="localizacao" ordem={ordem} onOrdenar={ordenarPor}>Localização</Ordenavel>
               <th className="px-3 py-2 text-left font-medium">Responsável</th>
               {canWrite && <th className="px-3 py-2" />}
             </tr>

@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
-import { getEletronicosPaginated } from '@/lib/api/eletronicos'
+import { getEletronicos, getEletronicosPaginated } from '@/lib/api/eletronicos'
 import { createCessao, type Periferico } from '@/lib/api/cessoes'
 import { createSolicitacaoCessao } from '@/lib/api/solicitacoes'
 import { getContratos } from '@/lib/api/contratos'
@@ -16,7 +16,8 @@ import { Label } from '@/components/ui/label'
 import { RequiredMark } from '@/components/ui/required-mark'
 import { Badge } from '@/components/ui/badge'
 import { SearchableSelect } from '@/components/app/searchable-select'
-import { ArrowLeft, FileText, Send, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, FileText, Send, Plus, Trash2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import Link from 'next/link'
 
 function CederConteudo() {
@@ -49,6 +50,8 @@ function CederConteudo() {
   const [dataCessao, setDataCessao] = useState('')
   const [perifericos, setPerifericos] = useState<Periferico[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [passo, setPasso] = useState(() => (busca.get('ids') ? 1 : 0))
+  const [revisao, setRevisao] = useState<Eletronico[]>([])
   const [ready, setReady] = useState(false)
 
   const isAdmin = user?.tipo === 'Admin'
@@ -239,6 +242,23 @@ function CederConteudo() {
     }
   }
 
+  const PASSOS = ['Equipamentos', 'Destino', 'Periféricos', 'Revisão']
+  const gestorDestino = contratos.find((c) => c.centro_custo === ccDestino)?.gestor_nome
+  const podeAvancar =
+    passo === 0 ? selecionados.size > 0 : passo === 1 ? !!responsavel.trim() && !!ccDestino : true
+
+  function avancar() {
+    const proximo = passo + 1
+    setPasso(proximo)
+    // Os marcados podem ser de outras páginas: a revisão busca todos de uma vez.
+    if (proximo === 3) {
+      setRevisao([])
+      getEletronicos()
+        .then((todos) => setRevisao(todos.filter((e) => selecionados.has(e.id))))
+        .catch(() => {})
+    }
+  }
+
   const todosMarcados =
     eletronicos.length > 0 && eletronicos.every((e) => selecionados.has(e.id))
 
@@ -265,254 +285,361 @@ function CederConteudo() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div
-          className={
-            isSubgestorOnly
-              ? 'grid grid-cols-1 gap-3 sm:grid-cols-2'
-              : 'grid grid-cols-1 gap-3 sm:grid-cols-3'
+      <form
+        // Enter num campo não pode pular a revisão: antes do último passo ele só avança.
+        onSubmit={(ev) => {
+          if (passo < 3) {
+            ev.preventDefault()
+            if (podeAvancar) avancar()
+            return
           }
-        >
-          <div className="space-y-1">
-            <Label>Responsável (recebedor) <RequiredMark /></Label>
+          handleSubmit(ev)
+        }}
+        className="space-y-4"
+      >
+        <ol className="flex flex-wrap gap-x-5 gap-y-2 border-b pb-3 text-sm">
+          {PASSOS.map((nome, i) => (
+            <li
+              key={nome}
+              className={cn(
+                'flex items-center gap-2 text-muted-foreground',
+                i === passo && 'font-medium text-foreground',
+              )}
+            >
+              <span
+                className={cn(
+                  'grid size-6 place-items-center rounded-full bg-muted text-xs font-bold',
+                  i === passo && 'bg-primary text-primary-foreground',
+                  i < passo && 'bg-ok text-white',
+                )}
+              >
+                {i < passo ? <Check className="h-3.5 w-3.5" /> : i + 1}
+              </span>
+              {nome}
+              {i === 0 && selecionados.size > 0 && ` (${selecionados.size})`}
+            </li>
+          ))}
+        </ol>
+
+        {passo === 0 && (
+          <>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Input
-              value={responsavel}
-              onChange={(e) => setResponsavel(e.target.value)}
-              placeholder="Nome completo"
-              required
+              placeholder="Buscar por nome, série ou patrimônio…"
+              value={search}
+              onChange={(e) => handleSearch(e.target.value)}
             />
-          </div>
-          <div className="space-y-1">
-            <Label>Centro de Custo destino <RequiredMark /></Label>
             <SearchableSelect
-              value={ccDestino}
-              onChange={setCcDestino}
-              options={contratos.map((c) => ({
-                value: c.centro_custo,
-                label: `${c.centro_custo} — ${c.descricao}`,
-              }))}
-              placeholder="Selecione o CC destino"
+              value={filtroCC}
+              onChange={handleFiltroCC}
+              options={[
+                { value: 'todos', label: 'Todos os CCs disponíveis' },
+                ...ccsDisponiveis.map((cc) => ({ value: cc, label: cc })),
+              ]}
             />
           </div>
-          {!isSubgestorOnly && (
-            <div className="space-y-1">
-              <Label>Data da cessão</Label>
-              <Input
-                type="date"
-                value={dataCessao}
-                onChange={(e) => setDataCessao(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">Em branco usa hoje</p>
-            </div>
-          )}
-        </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Input
-            placeholder="Buscar por nome, série ou patrimônio…"
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-          />
-          <SearchableSelect
-            value={filtroCC}
-            onChange={handleFiltroCC}
-            options={[
-              { value: 'todos', label: 'Todos os CCs disponíveis' },
-              ...ccsDisponiveis.map((cc) => ({ value: cc, label: cc })),
-            ]}
-          />
-        </div>
-
-        <div className="overflow-x-auto rounded-md border">
-          <table className="w-full min-w-[600px] text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="w-10 px-3 py-2">
-                  <input
-                    type="checkbox"
-                    checked={todosMarcados}
-                    onChange={toggleAll}
-                    className="h-4 w-4"
-                  />
-                </th>
-                <th className="px-3 py-2 text-left font-medium">Equipamento</th>
-                <th className="px-3 py-2 text-left font-medium">Nº Série</th>
-                <th className="px-3 py-2 text-left font-medium">Patrimônio</th>
-                <th className="px-3 py-2 text-left font-medium">CC</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loadingTable ? (
-                <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
-                    Carregando…
-                  </td>
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full min-w-[600px] text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="w-10 px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={todosMarcados}
+                      onChange={toggleAll}
+                      className="h-4 w-4"
+                    />
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium">Equipamento</th>
+                  <th className="px-3 py-2 text-left font-medium">Nº Série</th>
+                  <th className="px-3 py-2 text-left font-medium">Patrimônio</th>
+                  <th className="px-3 py-2 text-left font-medium">CC</th>
                 </tr>
-              ) : eletronicos.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
-                    Nenhum equipamento interno disponível.
-                  </td>
-                </tr>
-              ) : (
-                eletronicos.map((e) => (
-                  <tr
-                    key={e.id}
-                    className="cursor-pointer border-b last:border-0 hover:bg-muted/30"
-                    onClick={() => toggle(e.id)}
-                  >
-                    <td className="px-3 py-2">
-                      <input
-                        type="checkbox"
-                        checked={selecionados.has(e.id)}
-                        onChange={() => toggle(e.id)}
-                        onClick={(ev) => ev.stopPropagation()}
-                        className="h-4 w-4"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <p className="font-medium">{e.nome}</p>
-                      <p className="text-xs text-muted-foreground">{e.tipo}</p>
-                    </td>
-                    <td className="px-3 py-2">{e.numero_serie}</td>
-                    <td className="px-3 py-2">{e.numero_patrimonio}</td>
-                    <td className="px-3 py-2">
-                      <Badge variant="outline">{e.centro_custo}</Badge>
+              </thead>
+              <tbody>
+                {loadingTable ? (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                      Carregando…
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Paginação */}
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <p className="text-muted-foreground">
-            {total === 0
-              ? 'Nenhum resultado'
-              : `${inicioItem}–${fimItem} de ${total}`}
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handlePage(Math.max(1, page - 1))}
-              disabled={page === 1 || loadingTable}
-              className="rounded border px-2 py-1 text-xs disabled:opacity-40 hover:bg-muted"
-            >
-              ‹ Anterior
-            </button>
-            <span className="text-xs text-muted-foreground">
-              {page} / {totalPages}
-            </span>
-            <button
-              type="button"
-              onClick={() => handlePage(Math.min(totalPages, page + 1))}
-              disabled={page === totalPages || loadingTable}
-              className="rounded border px-2 py-1 text-xs disabled:opacity-40 hover:bg-muted"
-            >
-              Próxima ›
-            </button>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Itens/pág.:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => handlePageSize(Number(e.target.value))}
-              className="rounded border bg-background px-1.5 py-1 text-xs"
-            >
-              {[10, 25, 50, 100].map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="space-y-2 rounded-md border bg-card p-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Periféricos avulsos</p>
-                <p className="text-xs text-muted-foreground">
-                  Mouse, teclado, kit teclado+mouse, etc. — sem patrimônio,
-                  fora do controle de inventário, apenas para constar no termo.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addPeriferico}
-              >
-                <Plus className="mr-1 h-4 w-4" /> Adicionar
-              </Button>
-            </div>
-            {perifericos.length > 0 && (
-              <div className="space-y-2">
-                {perifericos.map((p, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <Input
-                      value={p.nome}
-                      onChange={(e) =>
-                        updatePeriferico(idx, { nome: e.target.value })
-                      }
-                      placeholder="Ex.: Mouse, Teclado, Kit teclado e mouse"
-                      className="flex-1"
-                    />
-                    <Input
-                      type="number"
-                      min={1}
-                      value={p.quantidade}
-                      onChange={(e) =>
-                        updatePeriferico(idx, {
-                          quantidade: Math.max(1, Number(e.target.value) || 1),
-                        })
-                      }
-                      className="w-20"
-                      title="Quantidade"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 shrink-0 text-destructive"
-                      onClick={() => removePeriferico(idx)}
-                      title="Remover"
+                ) : eletronicos.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                      Nenhum equipamento interno disponível.
+                    </td>
+                  </tr>
+                ) : (
+                  eletronicos.map((e) => (
+                    <tr
+                      key={e.id}
+                      className="cursor-pointer border-b last:border-0 hover:bg-muted/30"
+                      onClick={() => toggle(e.id)}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-        </div>
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={selecionados.has(e.id)}
+                          onChange={() => toggle(e.id)}
+                          onClick={(ev) => ev.stopPropagation()}
+                          className="h-4 w-4"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <p className="font-medium">{e.nome}</p>
+                        <p className="text-xs text-muted-foreground">{e.tipo}</p>
+                      </td>
+                      <td className="px-3 py-2">{e.numero_serie}</td>
+                      <td className="px-3 py-2">{e.numero_patrimonio}</td>
+                      <td className="px-3 py-2">
+                        <Badge variant="outline">{e.centro_custo}</Badge>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
-        <div className="flex items-center justify-between rounded-md border bg-card p-3">
-          <p className="text-sm">
-            <strong>{selecionados.size}</strong> equipamento(s) selecionado(s)
-            {selecionados.size > 0 && total > pageSize && (
-              <span className="ml-1 text-muted-foreground">(de várias páginas)</span>
-            )}
-          </p>
-          <Button
-            type="submit"
-            disabled={
-              submitting ||
-              selecionados.size === 0 ||
-              !responsavel ||
-              !ccDestino
+          {/* Paginação */}
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <p className="text-muted-foreground">
+              {total === 0
+                ? 'Nenhum resultado'
+                : `${inicioItem}–${fimItem} de ${total}`}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handlePage(Math.max(1, page - 1))}
+                disabled={page === 1 || loadingTable}
+                className="rounded border px-2 py-1 text-xs disabled:opacity-40 hover:bg-muted"
+              >
+                ‹ Anterior
+              </button>
+              <span className="text-xs text-muted-foreground">
+                {page} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => handlePage(Math.min(totalPages, page + 1))}
+                disabled={page === totalPages || loadingTable}
+                className="rounded border px-2 py-1 text-xs disabled:opacity-40 hover:bg-muted"
+              >
+                Próxima ›
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Itens/pág.:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => handlePageSize(Number(e.target.value))}
+                className="rounded border bg-background px-1.5 py-1 text-xs"
+              >
+                {[10, 25, 50, 100].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          </>
+        )}
+
+        {passo === 1 && (
+          <>
+          <div
+            className={
+              isSubgestorOnly
+                ? 'grid grid-cols-1 gap-3 sm:grid-cols-2'
+                : 'grid grid-cols-1 gap-3 sm:grid-cols-3'
             }
           >
-            {isSubgestorOnly ? (
-              <Send className="mr-2 h-4 w-4" />
-            ) : (
-              <FileText className="mr-2 h-4 w-4" />
+            <div className="space-y-1">
+              <Label>Responsável (recebedor) <RequiredMark /></Label>
+              <Input
+                value={responsavel}
+                onChange={(e) => setResponsavel(e.target.value)}
+                placeholder="Nome completo"
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Centro de Custo destino <RequiredMark /></Label>
+              <SearchableSelect
+                value={ccDestino}
+                onChange={setCcDestino}
+                options={contratos.map((c) => ({
+                  value: c.centro_custo,
+                  label: `${c.centro_custo} — ${c.descricao}`,
+                }))}
+                placeholder="Selecione o CC destino"
+              />
+            </div>
+            {!isSubgestorOnly && (
+              <div className="space-y-1">
+                <Label>Data da cessão</Label>
+                <Input
+                  type="date"
+                  value={dataCessao}
+                  onChange={(e) => setDataCessao(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Em branco usa hoje</p>
+              </div>
             )}
-            {submitting
-              ? 'Processando…'
-              : isSubgestorOnly
-                ? 'Enviar solicitação ao Gestor'
-                : 'Ceder e gerar termo'}
+          </div>
+            {gestorDestino && (
+              <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+                O gestor do CC {ccDestino}, <strong className="text-foreground">{gestorDestino}</strong>,
+                fica responsável por conferir a devolução depois.
+              </p>
+            )}
+          </>
+        )}
+
+        {passo === 2 && (
+          <div className="space-y-2 rounded-md border bg-card p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Periféricos avulsos</p>
+                  <p className="text-xs text-muted-foreground">
+                    Mouse, teclado, kit teclado+mouse, etc. — sem patrimônio,
+                    fora do controle de inventário, apenas para constar no termo.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addPeriferico}
+                >
+                  <Plus className="mr-1 h-4 w-4" /> Adicionar
+                </Button>
+              </div>
+              {perifericos.length > 0 && (
+                <div className="space-y-2">
+                  {perifericos.map((p, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        value={p.nome}
+                        onChange={(e) =>
+                          updatePeriferico(idx, { nome: e.target.value })
+                        }
+                        placeholder="Ex.: Mouse, Teclado, Kit teclado e mouse"
+                        className="flex-1"
+                      />
+                      <Input
+                        type="number"
+                        min={1}
+                        value={p.quantidade}
+                        onChange={(e) =>
+                          updatePeriferico(idx, {
+                            quantidade: Math.max(1, Number(e.target.value) || 1),
+                          })
+                        }
+                        className="w-20"
+                        title="Quantidade"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 shrink-0 text-destructive"
+                        onClick={() => removePeriferico(idx)}
+                        title="Remover"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+          </div>
+        )}
+
+        {passo === 3 && (
+          <div className="space-y-4">
+            <dl className="grid grid-cols-[9rem_1fr] gap-x-3 gap-y-2 rounded-md border bg-card p-4 text-sm">
+              <dt className="text-muted-foreground">Responsável</dt>
+              <dd>{responsavel}</dd>
+              <dt className="text-muted-foreground">CC de destino</dt>
+              <dd>
+                {ccDestino}
+                {contratos.find((c) => c.centro_custo === ccDestino)?.descricao &&
+                  ` · ${contratos.find((c) => c.centro_custo === ccDestino)?.descricao}`}
+              </dd>
+              {!isSubgestorOnly && (
+                <>
+                  <dt className="text-muted-foreground">Data</dt>
+                  <dd>{dataCessao ? dataCessao.split('-').reverse().join('/') : 'hoje'}</dd>
+                </>
+              )}
+              <dt className="text-muted-foreground">Periféricos</dt>
+              <dd>
+                {perifericos.filter((x) => x.nome.trim()).map((x) => `${x.quantidade} ${x.nome}`).join(', ') ||
+                  'nenhum'}
+              </dd>
+            </dl>
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="px-3 py-2 text-left font-medium">Patrimônio</th>
+                    <th className="px-3 py-2 text-left font-medium">Equipamento</th>
+                    <th className="px-3 py-2 text-left font-medium">Nº Série</th>
+                    <th className="px-3 py-2 text-left font-medium">CC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {revisao.map((e) => (
+                    <tr key={e.id} className="border-b last:border-0">
+                      <td className="px-3 py-2 font-mono">{e.numero_patrimonio}</td>
+                      <td className="px-3 py-2">{e.nome}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{e.numero_serie}</td>
+                      <td className="px-3 py-2">{e.centro_custo}</td>
+                    </tr>
+                  ))}
+                  {revisao.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
+                        Carregando os equipamentos marcados…
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {isSubgestorOnly
+                ? 'Ao enviar, o Gestor do CC recebe a solicitação para aprovar.'
+                : 'Ao confirmar, o sistema registra a cessão e abre o termo para assinatura.'}
+            </p>
+          </div>
+        )}
+
+        <div className="sticky bottom-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-3 shadow-sm">
+          <Button type="button" variant="outline" disabled={passo === 0} onClick={() => setPasso((n) => n - 1)}>
+            <ArrowLeft className="h-4 w-4" /> Voltar
           </Button>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">
+              <strong className="text-foreground">{selecionados.size}</strong> equipamento(s)
+            </span>
+            {passo < 3 ? (
+              <Button type="button" disabled={!podeAvancar} onClick={avancar}>
+                Continuar <ArrowRight className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button type="submit" disabled={submitting || selecionados.size === 0 || !responsavel || !ccDestino}>
+                {isSubgestorOnly ? <Send className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+                {submitting
+                  ? 'Processando…'
+                  : isSubgestorOnly
+                    ? 'Enviar solicitação ao Gestor'
+                    : 'Ceder e gerar termo'}
+              </Button>
+            )}
+          </div>
         </div>
       </form>
     </div>

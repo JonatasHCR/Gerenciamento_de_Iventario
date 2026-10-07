@@ -16,6 +16,8 @@ import { useAuth } from '@/context/auth-context'
 import { MobileSidebar } from './mobile-sidebar'
 import { BuscaGlobal } from './busca-global'
 import { getSolicitacoes, aprovarSolicitacao, rejeitarSolicitacao } from '@/lib/api/solicitacoes'
+import { getRecebimentosPendentesGestor } from '@/lib/api/cessoes'
+import Link from 'next/link'
 import type { Solicitacao } from '@/types/api'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -25,22 +27,32 @@ export function Topbar() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [convites, setConvites] = useState<Solicitacao[]>([])
+  const [pendentes, setPendentes] = useState(0)
+  const [recebimentos, setRecebimentos] = useState(0)
+  const [sinoAberto, setSinoAberto] = useState(false)
 
   useEffect(() => setMounted(true), [])
 
   const load = () => {
     if (!user) return
+    getRecebimentosPendentesGestor()
+      .then((r) => setRecebimentos(r.count))
+      .catch(() => {})
     getSolicitacoes()
-      .then((list) =>
-        setConvites(
+      .then((list) => {
+        // Convites são respondidos aqui; os demais pedidos, na tela de solicitações.
+        setPendentes(
+          list.filter((s) => s.status === 'pendente' && s.solicitante_id !== user.id).length,
+        )
+        return setConvites(
           list.filter(
             (s) =>
               s.status === 'pendente' &&
               s.convidado_por_id != null &&
               s.solicitante_id === user.id,
           ),
-        ),
-      )
+        )
+      })
       .catch(() => {})
   }
 
@@ -77,24 +89,45 @@ export function Topbar() {
           {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
         </Button>
       )}
-      <Sheet>
+      <Sheet open={sinoAberto} onOpenChange={setSinoAberto}>
         <SheetTrigger asChild>
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-5 w-5" />
-            {convites.length > 0 && (
-              <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-white">
-                {convites.length}
+            {convites.length + pendentes + recebimentos > 0 && (
+              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] text-white">
+                {convites.length + pendentes + recebimentos}
               </span>
             )}
           </Button>
         </SheetTrigger>
         <SheetContent>
           <SheetHeader>
-            <SheetTitle>Convites pendentes</SheetTitle>
+            <SheetTitle>Notificações</SheetTitle>
           </SheetHeader>
-          <div className="mt-4 space-y-4">
-            {convites.length === 0 && (
-              <p className="text-sm text-muted-foreground">Nenhum convite pendente.</p>
+          <div className="mt-4 space-y-4 px-4">
+            {pendentes > 0 && (
+              <Link
+                href="/solicitacoes"
+                onClick={() => setSinoAberto(false)}
+                className="block rounded-md border bg-warn-bg p-3 text-sm text-warn hover:border-ring"
+              >
+                <b>{pendentes} solicitação(ões) pendente(s)</b>
+                <span className="block text-xs opacity-80">entrada em CC, cargo ou cessão esperando resposta</span>
+              </Link>
+            )}
+            {recebimentos > 0 && (
+              <Link
+                href="/cessoes?aba=recebimentos"
+                onClick={() => setSinoAberto(false)}
+                className="block rounded-md border bg-info-bg p-3 text-sm text-info hover:border-ring"
+              >
+                <b>{recebimentos} devolução(ões) para conferir</b>
+                <span className="block text-xs opacity-80">equipamentos que voltaram para os seus CCs</span>
+              </Link>
+            )}
+            {convites.length > 0 && <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Convites</p>}
+            {convites.length + pendentes + recebimentos === 0 && (
+              <p className="text-sm text-muted-foreground">Nada esperando por você.</p>
             )}
             {convites.map((c) => (
               <div key={c.id} className="rounded-md border p-3 text-sm">

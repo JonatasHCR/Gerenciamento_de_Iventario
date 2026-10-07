@@ -289,3 +289,60 @@ async def test_funcionario_ve_so_os_proprios(async_client, async_db):
     ids = {i['id'] for i in resp.json()['eletronicos']}
     assert e_meu.id in ids
     assert e_alheio.id not in ids
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_filtro_localizacao_com_varias(
+    async_client, async_db, login_teste
+):
+    await _criar_contrato(async_db, 'FL1')
+    a = await _criar_eletronico(async_db, 'FL1', localizacao='Sala TI')
+    b = await _criar_eletronico(async_db, 'FL1', localizacao='Almoxarifado')
+    await _criar_eletronico(async_db, 'FL1', localizacao='Obra')
+
+    resp = await async_client.get(
+        URL,
+        params={'localizacao': ['Sala TI', 'Almoxarifado'], 'page_size': 1000},
+        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    )
+
+    ids = {i['id'] for i in resp.json()['eletronicos']}
+    assert {a.id, b.id} <= ids
+    assert all(
+        i['localizacao'] in {'Sala TI', 'Almoxarifado'}
+        for i in resp.json()['eletronicos']
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_ordena_pela_coluna_pedida(async_client, async_db, login_teste):
+    await _criar_contrato(async_db, 'OR1')
+    for nome in ('Charlie', 'Alfa', 'Bravo'):
+        await _criar_eletronico(async_db, 'OR1', nome=f'ORD-{nome}')
+    cab = {'Authorization': f'Bearer {login_teste["token"]}'}
+
+    sobe = await async_client.get(
+        URL, params={'q': 'ORD-', 'ordem': 'nome'}, headers=cab
+    )
+    desce = await async_client.get(
+        URL, params={'q': 'ORD-', 'ordem': 'nome', 'desc': True}, headers=cab
+    )
+
+    nomes = [i['nome'] for i in sobe.json()['eletronicos']]
+    assert nomes == ['ORD-Alfa', 'ORD-Bravo', 'ORD-Charlie']
+    assert [i['nome'] for i in desce.json()['eletronicos']] == nomes[::-1]
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_ordem_desconhecida_cai_nos_recentes(
+    async_client, async_db, login_teste
+):
+    resp = await async_client.get(
+        URL,
+        params={'ordem': 'senha'},
+        headers={'Authorization': f'Bearer {login_teste["token"]}'},
+    )
+    assert resp.status_code == HTTPStatus.OK
