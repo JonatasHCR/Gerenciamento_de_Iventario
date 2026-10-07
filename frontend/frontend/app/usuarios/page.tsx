@@ -20,6 +20,7 @@ import {
 import { createConviteCC } from '@/lib/api/solicitacoes'
 import type { User, Contrato, AssociacaoUserContrato, Ocupacao } from '@/types/api'
 import { Button } from '@/components/ui/button'
+import { Iniciais } from '@/components/app/marca'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RequiredMark } from '@/components/ui/required-mark'
@@ -322,9 +323,12 @@ export default function UsuariosPage() {
                   const u = users.find((x) => x.id === m.user_id)
                   return (
                     <div key={m.user_id} className="flex items-center justify-between px-4 py-2">
-                      <div>
-                        <p className="text-sm font-medium">{u?.nome ?? `#${m.user_id}`}</p>
-                        <p className="text-xs text-muted-foreground">{u?.email}</p>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <Iniciais nome={u?.nome ?? '?'} />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{u?.nome ?? `#${m.user_id}`}</p>
+                          <p className="truncate text-xs text-muted-foreground">{u?.email}</p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{m.ocupacao}</Badge>
@@ -379,9 +383,12 @@ export default function UsuariosPage() {
               <div className="divide-y">
                 {filtered.map((u) => (
                   <div key={u.id} className="flex items-center justify-between px-4 py-2">
-                    <div>
-                      <p className="text-sm font-medium">{u.nome}</p>
-                      <p className="text-xs text-muted-foreground">{u.email}</p>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Iniciais nome={u.nome} />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{u.nome}</p>
+                        <p className="truncate text-xs text-muted-foreground">{u.email}</p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       {(comEquipamento.get(u.id) ?? 0) > 0 && (

@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
 import { TrocarSistema } from './trocar-sistema'
 import { ListaNavegacao } from './navegacao'
+import { Iniciais, Marca } from './marca'
 import { getSolicitacoes, createCargoInicial } from '@/lib/api/solicitacoes'
 import { getRecebimentosPendentesGestor } from '@/lib/api/cessoes'
 import { getAssociacoesContrato } from '@/lib/api/associacoes'
@@ -106,19 +107,9 @@ export function Sidebar() {
         collapsed ? 'w-16' : 'w-60',
       )}
     >
-      <div className="flex items-center justify-between border-b px-3 py-4">
-        {!collapsed && (
-          <span className="text-sm font-semibold tracking-tight">InvControl</span>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="ml-auto h-7 w-7"
-          onClick={() => setCollapsed(!collapsed)}
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
-      </div>
+      <Link href="/" className={cn('flex items-center border-b py-4', collapsed ? 'justify-center px-2' : 'px-4')}>
+        <Marca recolhida={collapsed} />
+      </Link>
 
       <ListaNavegacao
         user={user}
@@ -130,14 +121,23 @@ export function Sidebar() {
       />
 
       <div className="border-t p-3">
-        {!collapsed && user && (
+        {user && (
           <button
             type="button"
             onClick={abrirPerfil}
-            className="mb-2 w-full rounded-md px-1 py-1 text-left hover:bg-muted"
+            title={collapsed ? `${user.nome} · ${user.tipo}` : 'Meu perfil'}
+            className={cn(
+              'mb-2 flex w-full items-center gap-2.5 rounded-md p-1 text-left hover:bg-muted',
+              collapsed && 'justify-center',
+            )}
           >
-            <p className="truncate text-sm font-medium">{user.nome}</p>
-            <p className="text-xs text-muted-foreground">{user.tipo}</p>
+            <Iniciais nome={user.nome} className="bg-primary/10 text-primary" />
+            {!collapsed && (
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">{user.nome}</span>
+                <span className="block text-xs text-muted-foreground">{user.tipo}</span>
+              </span>
+            )}
           </button>
         )}
         {user?.tipo === 'Admin' && (
@@ -162,6 +162,16 @@ export function Sidebar() {
         >
           <LogOut className="h-4 w-4" />
           {!collapsed && <span className="ml-2">Sair</span>}
+        </Button>
+        <Button
+          variant="ghost"
+          size={collapsed ? 'icon' : 'sm'}
+          className="w-full text-muted-foreground hover:text-foreground"
+          onClick={() => setCollapsed(!collapsed)}
+          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+        >
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          {!collapsed && <span className="ml-2">Recolher menu</span>}
         </Button>
       </div>
 

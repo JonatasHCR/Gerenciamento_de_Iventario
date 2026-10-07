@@ -21,6 +21,7 @@ import type { Eletronico, EletronicoStatus, Solicitacao } from '@/types/api'
 import { Button } from '@/components/ui/button'
 import { StatusCessao, ROTULO_STATUS } from '@/components/app/status'
 import { formatDate } from '@/lib/utils'
+import { SimboloTipo } from '@/components/app/icone-tipo'
 
 const COR: Record<EletronicoStatus, string> = {
   Interno: 'bg-ok',
@@ -235,9 +236,12 @@ export default function PainelPage() {
               <Link
                 key={tipo}
                 href={`/equipamentos?tipo=${encodeURIComponent(tipo)}`}
-                className="grid grid-cols-[7rem_1fr_2.5rem] items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                className="grid grid-cols-[8.5rem_1fr_2.5rem] items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
               >
-                <span className="truncate">{tipo}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <SimboloTipo tipo={tipo} className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{tipo}</span>
+                </span>
                 <span className="flex h-2 overflow-hidden rounded-full bg-muted">
                   {SITUACOES.map((s) => (
                     <i key={s} className={COR[s]} style={{ width: `${(c[s] / maiorTipo) * 100}%` }} />

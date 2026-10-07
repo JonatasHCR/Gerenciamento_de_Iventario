@@ -7,6 +7,7 @@ import { Menu, LogOut, Settings } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { TrocarSistema } from './trocar-sistema'
 import { ListaNavegacao } from './navegacao'
+import { Iniciais, Marca } from './marca'
 import { getSolicitacoes } from '@/lib/api/solicitacoes'
 import { getRecebimentosPendentesGestor } from '@/lib/api/cessoes'
 import { getAssociacoesContrato } from '@/lib/api/associacoes'
@@ -66,7 +67,9 @@ export function MobileSidebar() {
       </SheetTrigger>
       <SheetContent side="left" className="w-64 p-0">
         <SheetHeader className="border-b px-4 py-3">
-          <SheetTitle>InvControl</SheetTitle>
+          <SheetTitle>
+            <Marca />
+          </SheetTitle>
         </SheetHeader>
         <ListaNavegacao
           user={user}
@@ -78,9 +81,12 @@ export function MobileSidebar() {
         />
         {user && (
           <div className="border-t p-3">
-            <div className="mb-2 px-1">
-              <p className="truncate text-sm font-medium">{user.nome}</p>
-              <p className="text-xs text-muted-foreground">{user.tipo}</p>
+            <div className="mb-2 flex items-center gap-2.5 px-1">
+              <Iniciais nome={user.nome} className="bg-primary/10 text-primary" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{user.nome}</p>
+                <p className="text-xs text-muted-foreground">{user.tipo}</p>
+              </div>
             </div>
             {user?.tipo === 'Admin' && (
               <Button
