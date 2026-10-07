@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   ArrowRight,
   BarChart3,
@@ -45,11 +46,19 @@ export default function PainelPage() {
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([])
   const [recebimentos, setRecebimentos] = useState(0)
   const [cessoes, setCessoes] = useState<Cessao[]>([])
+  const [nomeCC, setNomeCC] = useState<Record<string, string>>({})
+  const [cessoesCarregadas, setCessoesCarregadas] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
     if (!user) return
     getEletronicos().then(setEletronicos).catch(() => {})
-    getContratos().then((l) => setCcsTotais(l.length)).catch(() => {})
+    getContratos()
+      .then((l) => {
+        setCcsTotais(l.length)
+        setNomeCC(Object.fromEntries(l.map((c) => [c.centro_custo, c.descricao])))
+      })
+      .catch(() => {})
     getAssociacoesContrato()
       .then((list) => setMeusCCs(list.filter((a) => a.user_id === user.id).map((a) => a.centro_custo)))
       .catch(() => {})
@@ -60,7 +69,10 @@ export default function PainelPage() {
       .catch(() => {})
     getSolicitacoes().then(setSolicitacoes).catch(() => {})
     getRecebimentosPendentesGestor().then((r) => setRecebimentos(r.count)).catch(() => {})
-    getCessoes().then(setCessoes).catch(() => {})
+    getCessoes()
+      .then(setCessoes)
+      .catch(() => {})
+      .finally(() => setCessoesCarregadas(true))
   }, [user])
 
   const isFuncionario = user?.tipo === 'Funcionario'
@@ -101,6 +113,10 @@ export default function PainelPage() {
   const emManutencao = visiveis.filter((e) => e.status === 'Em Manutenção')
   const abertas = cessoes.filter((c) => c.status !== 'devolvida')
   const recentes = [...cessoes].sort((a, b) => b.cedido_em.localeCompare(a.cedido_em)).slice(0, 6)
+  const emCessaoAberta = new Set(
+    abertas.flatMap((c) => c.eletronicos.filter((e) => e.devolvido_em === null).map((e) => e.id)),
+  )
+  const semTermo = cessoesCarregadas ? visiveis.filter((e) => e.status === 'Externo' && !emCessaoAberta.has(e.id)) : []
   const atencao = pendentes.length + recebimentos
   const ccs = isFuncionario || isGestor ? meusCCs.length : ccsTotais
 
@@ -254,16 +270,36 @@ export default function PainelPage() {
         </section>
       </div>
 
-      {recentes.length > 0 && (
-        <section className="rounded-xl border bg-card shadow-xs">
+      <section className="rounded-xl border bg-card shadow-xs">
           <header className="flex items-center justify-between border-b px-4 py-3">
-            <h2 className="text-sm font-semibold">Cessões recentes</h2>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-sm font-semibold">Cessões recentes</h2>
+              <span className="text-xs text-muted-foreground">
+                {abertas.length} aberta(s) · {cessoes.length - abertas.length} devolvida(s)
+              </span>
+            </div>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/cessoes">
                 Ver todas <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
           </header>
+          {semTermo.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-warn-bg px-4 py-2.5 text-sm">
+              <span>
+                <strong className="text-warn">{semTermo.length} cedido(s) sem cessão registrada</strong>
+                <span className="text-muted-foreground"> · sem termo nem recebimento</span>
+              </span>
+              <Button size="sm" variant="outline" asChild>
+                <Link href="/cessoes">Regularizar</Link>
+              </Button>
+            </div>
+          )}
+          {recentes.length === 0 ? (
+            <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+              Nenhuma cessão registrada ainda. Quando equipamentos forem cedidos, aparecem aqui com o termo.
+            </p>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[620px] text-sm">
               <thead>
@@ -278,24 +314,36 @@ export default function PainelPage() {
               </thead>
               <tbody>
                 {recentes.map((c) => (
-                  <tr key={c.id} className="border-b last:border-0 hover:bg-muted/40">
+                  <tr
+                    key={c.id}
+                    className="cursor-pointer border-b last:border-0 hover:bg-muted/40"
+                    onClick={() => router.push(`/cessoes?id=${c.id}`)}
+                  >
                     <td className="px-4 py-2 font-mono">
                       <Link href={`/cessoes?id=${c.id}`} className="hover:underline">#{c.id}</Link>
                     </td>
                     <td className="px-4 py-2">{c.responsavel}</td>
-                    <td className="px-4 py-2">CC {c.centro_custo_destino}</td>
+                    <td className="px-4 py-2">
+                      CC {c.centro_custo_destino}
+                      {nomeCC[c.centro_custo_destino] && (
+                        <span className="text-muted-foreground"> · {nomeCC[c.centro_custo_destino]}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2 tabular-nums">{formatDate(c.cedido_em).slice(0, 10)}</td>
                     <td className="px-4 py-2 tabular-nums">{c.total_eletronicos}</td>
                     <td className="px-4 py-2">
-                      <StatusCessao status={c.status} />
+                      <StatusCessao
+                        status={c.status}
+                        detalhe={c.status === 'parcial' ? `${c.total_devolvidos}/${c.total_eletronicos}` : undefined}
+                      />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          )}
         </section>
-      )}
     </div>
   )
 }

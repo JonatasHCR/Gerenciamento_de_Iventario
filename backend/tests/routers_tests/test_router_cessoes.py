@@ -154,13 +154,33 @@ async def test_create_cessao_eletronico_ja_externo_retorna_conflict(
     async_client, async_db, login_teste
 ):
     c = await _criar_contrato(async_db)
-    e = await _criar_eletronico(async_db, c.centro_custo, status='Externo')
+    e = await _criar_eletronico(async_db, c.centro_custo)
+    primeira = await _criar_cessao(
+        async_client, login_teste['token'], [e.id], c.centro_custo
+    )
+    assert primeira.status_code == HTTPStatus.CREATED
 
     resp = await _criar_cessao(
         async_client, login_teste['token'], [e.id], c.centro_custo
     )
 
     assert resp.status_code == HTTPStatus.CONFLICT
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_create_cessao_externo_sem_cessao_aberta_regulariza(
+    async_client, async_db, login_teste
+):
+    c = await _criar_contrato(async_db)
+    e = await _criar_eletronico(async_db, c.centro_custo, status='Externo')
+
+    resp = await _criar_cessao(
+        async_client, login_teste['token'], [e.id], c.centro_custo
+    )
+
+    assert resp.status_code == HTTPStatus.CREATED
+    assert [x['id'] for x in resp.json()['eletronicos']] == [e.id]
 
 
 @pytest.mark.asyncio
@@ -218,7 +238,11 @@ async def test_criar_cessao_falha_atomicamente_se_um_eletronico_externo(
     """
     c = await _criar_contrato(async_db)
     e_interno = await _criar_eletronico(async_db, c.centro_custo, 'Interno')
-    e_externo = await _criar_eletronico(async_db, c.centro_custo, 'Externo')
+    e_externo = await _criar_eletronico(async_db, c.centro_custo, 'Interno')
+    ja_cedido = await _criar_cessao(
+        async_client, login_teste['token'], [e_externo.id], c.centro_custo
+    )
+    assert ja_cedido.status_code == HTTPStatus.CREATED
 
     resp = await _criar_cessao(
         async_client,
