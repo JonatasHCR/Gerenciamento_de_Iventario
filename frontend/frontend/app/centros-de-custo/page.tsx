@@ -37,14 +37,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Pencil, Trash2, Users, LogOut, UserPlus, ArrowRight } from 'lucide-react'
-import Link from 'next/link'
+import { Plus, Pencil, Trash2, Users, LogOut, UserPlus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { BarraSituacao, useResumoPor } from '@/components/app/distribuicao'
 
 const OCUPACOES: Ocupacao[] = ['Gestor', 'Subgestor', 'Funcionario']
 
 export default function CentrosDeCustoPage() {
   const { user } = useAuth()
+  const router = useRouter()
   const [contratos, setContratos] = useState<Contrato[]>([])
   const [assocs, setAssocs] = useState<AssociacaoUserContrato[]>([])
   const [search, setSearch] = useState('')
@@ -182,8 +183,13 @@ export default function CentrosDeCustoPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Centros de Custo</h1>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Centros de custo</h1>
+          <p className="text-sm text-muted-foreground">
+            Vêm da Receita. O gestor de cada CR aprova entradas e confere devoluções.
+          </p>
+        </div>
         {canCreate && (
           <Dialog open={openNovo} onOpenChange={setOpenNovo}>
             <DialogTrigger asChild>
@@ -246,123 +252,120 @@ export default function CentrosDeCustoPage() {
         </Select>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {filtrados.map((c) => {
-          const minhaAssoc = assocs.find(
-            (a) => a.centro_custo === c.centro_custo && a.user_id === user?.id,
-          )
-          const jaSou = minhaAssoc != null
-          // Conta gestores apenas das associações que o usuário enxerga
-          // (pra decidir 'único gestor' quando ele é o gestor)
-          const gestoresVisiveis = assocs.filter(
-            (a) => a.centro_custo === c.centro_custo && a.ocupacao === 'Gestor',
-          )
-          const ehUnicoGestor =
-            minhaAssoc?.ocupacao === 'Gestor' && gestoresVisiveis.length === 1
-          const podeEditar =
-            user?.tipo === 'Admin' || minhaAssoc?.ocupacao === 'Gestor'
+      <div className="overflow-x-auto rounded-xl border bg-card shadow-xs">
+        <table className="w-full min-w-[760px] text-sm">
+          <thead>
+            <tr className="border-b bg-muted/40 text-xs text-muted-foreground">
+              <th className="px-4 py-2 text-left font-medium">CR</th>
+              <th className="px-4 py-2 text-left font-medium">Descrição</th>
+              <th className="px-4 py-2 text-left font-medium">Gestor</th>
+              <th className="px-4 py-2 text-right font-medium">Equipamentos</th>
+              <th className="px-4 py-2 text-right font-medium">Cedidos</th>
+              <th className="w-44 px-4 py-2 text-left font-medium">Distribuição</th>
+              <th className="px-4 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {filtrados.map((c) => {
+              const minhaAssoc = assocs.find(
+                (a) => a.centro_custo === c.centro_custo && a.user_id === user?.id,
+              )
+              const jaSou = minhaAssoc != null
+              // Conta gestores apenas das associações que o usuário enxerga
+              // (pra decidir 'único gestor' quando ele é o gestor)
+              const gestoresVisiveis = assocs.filter(
+                (a) => a.centro_custo === c.centro_custo && a.ocupacao === 'Gestor',
+              )
+              const ehUnicoGestor =
+                minhaAssoc?.ocupacao === 'Gestor' && gestoresVisiveis.length === 1
+              const podeEditar =
+                user?.tipo === 'Admin' || minhaAssoc?.ocupacao === 'Gestor'
+              const r = resumo(c.centro_custo)
+              const verLista = () =>
+                router.push(`/equipamentos?centro_custo=${encodeURIComponent(c.centro_custo)}`)
 
-          return (
-            <div
-              key={c.centro_custo}
-              className="rounded-lg border bg-card p-4 space-y-3"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-semibold">{c.centro_custo}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {c.descricao}
-                  </p>
-                </div>
-                <div className="flex gap-1">
-                  {podeEditar && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      onClick={() => abrirEditar(c)}
-                      title="Editar CC"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {canCreate && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-destructive"
-                      onClick={() => handleDelete(c.centro_custo)}
-                      title="Excluir CC"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <Link
-                href={`/equipamentos?centro_custo=${encodeURIComponent(c.centro_custo)}`}
-                className="group block space-y-1.5 rounded-md border bg-muted/30 p-2.5 hover:border-ring"
-              >
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">
-                    <strong className="text-sm text-foreground">{resumo(c.centro_custo).total}</strong> equipamento(s)
-                    {resumo(c.centro_custo).Externo > 0 && ` · ${resumo(c.centro_custo).Externo} cedido(s)`}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-muted-foreground group-hover:text-foreground">
-                    Ver <ArrowRight className="h-3.5 w-3.5" />
-                  </span>
-                </div>
-                <BarraSituacao c={resumo(c.centro_custo)} />
-              </Link>
-              <div className="flex items-center justify-between border-t pt-2 text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground">Gestor</p>
-                  <p className="font-medium">{c.gestor_nome ?? '—'}</p>
-                </div>
-                <div className="flex items-center gap-1 text-muted-foreground">
-                  <Users className="h-4 w-4" />
-                  <span className="font-medium text-foreground">
-                    {c.total_membros ?? 0}
-                  </span>
-                </div>
-              </div>
-              {jaSou ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => handleSair(c.centro_custo)}
-                  disabled={ehUnicoGestor}
-                  title={
-                    ehUnicoGestor
-                      ? 'Você é o único Gestor — nomeie outro antes de sair'
-                      : ''
-                  }
+              return (
+                <tr
+                  key={c.centro_custo}
+                  className="cursor-pointer border-b last:border-0 hover:bg-muted/40"
+                  onClick={verLista}
+                  title="Ver os equipamentos deste CR"
                 >
-                  <LogOut className="mr-1 h-4 w-4" />
-                  {ehUnicoGestor ? 'Único Gestor (não pode sair)' : 'Sair do CC'}
-                </Button>
-              ) : (
-                !isAdminOuTI && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => setOpenEntrada(c.centro_custo)}
-                  >
-                    <UserPlus className="mr-1 h-4 w-4" />
-                    Solicitar entrada
-                  </Button>
-                )
-              )}
-            </div>
-          )
-        })}
-        {filtrados.length === 0 && (
-          <p className="col-span-full text-sm text-muted-foreground">
-            Nenhum resultado.
-          </p>
-        )}
+                  <td className="px-4 py-2.5 font-mono">{c.centro_custo}</td>
+                  <td className="px-4 py-2.5">{c.descricao}</td>
+                  <td className="px-4 py-2.5">
+                    {c.gestor_nome ?? '—'}
+                    <span className="ml-1.5 inline-flex items-center gap-0.5 text-xs text-muted-foreground" title="Membros">
+                      <Users className="h-3 w-3" />
+                      {c.total_membros ?? 0}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono tabular-nums">{r.total}</td>
+                  <td className="px-4 py-2.5 text-right font-mono tabular-nums">{r.Externo}</td>
+                  <td className="px-4 py-2.5">
+                    <BarraSituacao c={r} />
+                  </td>
+                  <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1">
+                      {jaSou ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs"
+                          onClick={() => handleSair(c.centro_custo)}
+                          disabled={ehUnicoGestor}
+                          title={ehUnicoGestor ? 'Você é o único Gestor — nomeie outro antes de sair' : 'Sair do CC'}
+                        >
+                          <LogOut className="h-3.5 w-3.5" /> Sair
+                        </Button>
+                      ) : (
+                        !isAdminOuTI && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs"
+                            onClick={() => setOpenEntrada(c.centro_custo)}
+                          >
+                            <UserPlus className="h-3.5 w-3.5" /> Entrar
+                          </Button>
+                        )
+                      )}
+                      {podeEditar && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => abrirEditar(c)}
+                          title="Editar CC"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {canCreate && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => handleDelete(c.centro_custo)}
+                          title="Excluir CC"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+            {filtrados.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                  Nenhum resultado.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
       <Dialog

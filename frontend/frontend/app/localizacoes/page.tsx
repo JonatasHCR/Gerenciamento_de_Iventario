@@ -107,11 +107,10 @@ export default function LocalizacoesPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Localizações</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Localizações</h1>
           <p className="text-sm text-muted-foreground">
-            Locais onde equipamentos podem estar. Qualquer usuário pode
-            criar localização ao cadastrar um equipamento; aqui o Admin
-            consolida.
+            Onde cada equipamento está fisicamente. Qualquer pessoa cria um local ao cadastrar um equipamento; aqui o
+            Admin consolida.
           </p>
         </div>
         <Button size="sm" onClick={abrirNova} className="shrink-0">
@@ -119,7 +118,7 @@ export default function LocalizacoesPage() {
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-xl border bg-card shadow-xs">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">

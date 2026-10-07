@@ -6,6 +6,7 @@ import {
   Boxes,
   Building2,
   ClipboardList,
+  Database,
   FileText,
   History,
   LayoutDashboard,
@@ -50,7 +51,13 @@ const GRUPOS: [string, Item[]][] = [
       { href: '/localizacoes', label: 'Localizações', icon: MapPin, so: 'admin' },
     ],
   ],
-  ['Administração', [{ href: '/auditoria', label: 'Auditoria', icon: History, so: 'admin' }]],
+  [
+    'Administração',
+    [
+      { href: '/administracao', label: 'Backup e manutenção', icon: Database, so: 'admin' },
+      { href: '/auditoria', label: 'Auditoria', icon: History, so: 'admin' },
+    ],
+  ],
 ]
 
 function ativo(pathname: string, href: string) {
