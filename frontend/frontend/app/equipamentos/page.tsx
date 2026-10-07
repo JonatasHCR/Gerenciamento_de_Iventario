@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import {
@@ -8,8 +9,11 @@ import {
   createEletronico,
   updateEletronico,
   deleteEletronico,
+  getEletronicos,
   type CampoBuscaEletronico,
+  type EletronicoPayload,
 } from '@/lib/api/eletronicos'
+import { getCessoes, type Cessao } from '@/lib/api/cessoes'
 import { getContratos } from '@/lib/api/contratos'
 import {
   getAssociacoesEletronico,
@@ -38,7 +42,6 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { RequiredMark } from '@/components/ui/required-mark'
-import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
@@ -61,14 +64,40 @@ import {
   ChevronRight,
   Users as UsersIcon,
   X,
+  ArrowRight,
+  LayoutGrid,
+  List,
+  MapPin,
+  Wrench,
+  Undo2,
 } from 'lucide-react'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { FiltroMulti } from '@/components/app/filtro-multi'
+import { StatusEquipamento, ROTULO_STATUS } from '@/components/app/status'
+import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import { SearchableSelect } from '@/components/app/searchable-select'
 
-const STATUS_COLORS: Record<string, string> = {
-  Interno: 'default',
-  Externo: 'secondary',
-  'Em Manutenção': 'destructive',
+function payloadDe(e: Eletronico): EletronicoPayload {
+  return {
+    numero_serie: e.numero_serie,
+    numero_patrimonio: e.numero_patrimonio,
+    nome: e.nome,
+    marca: e.marca ?? '',
+    tipo: e.tipo,
+    modelo: e.modelo ?? '',
+    status: e.status,
+    ip: e.ip ?? '',
+    localizacao: e.localizacao ?? '',
+    descricao: e.descricao ?? '',
+    centro_custo: e.centro_custo,
+  }
 }
 
 // TIPOS_EQUIPAMENTO agora vem do backend dinamicamente — ver useEffect.
@@ -100,17 +129,28 @@ const EMPTY = {
   centro_custo: '',
 }
 
-export default function EquipamentosPage() {
+function EquipamentosConteudo() {
   const { user } = useAuth()
+  const router = useRouter()
+  const busca = useSearchParams()
   const [eletronicos, setEletronicos] = useState<Eletronico[]>([])
   const [contratos, setContratos] = useState<Contrato[]>([])
   const [search, setSearch] = useState('')
   const [searchDebounced, setSearchDebounced] = useState('')
   const [campoBusca, setCampoBusca] =
     useState<CampoBuscaEletronico>('todos')
-  const [filtroCC, setFiltroCC] = useState('todos')
-  const [filtroStatus, setFiltroStatus] = useState('todos')
-  const [filtroTipo, setFiltroTipo] = useState('todos')
+  // Os links do painel chegam com o filtro na URL (?status=…&tipo=…&id=…).
+  const [filtroCC, setFiltroCC] = useState<string[]>(() => busca.getAll('centro_custo'))
+  const [filtroStatus, setFiltroStatus] = useState<string[]>(() => busca.getAll('status'))
+  const [filtroTipo, setFiltroTipo] = useState<string[]>(() => busca.getAll('tipo'))
+  const [modo, setModo] = useState<'tabela' | 'cartoes'>('tabela')
+  const [marcados, setMarcados] = useState<Map<number, Eletronico>>(new Map())
+  const [detalheId, setDetalheId] = useState<number | null>(() => Number(busca.get('id')) || null)
+  const [detalheAvulso, setDetalheAvulso] = useState<Eletronico | null>(null)
+  const [cessoes, setCessoes] = useState<Cessao[]>([])
+  const [localLoteOpen, setLocalLoteOpen] = useState(false)
+  const [localLote, setLocalLote] = useState('')
+  const [emLote, setEmLote] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [total, setTotal] = useState(0)
@@ -155,9 +195,9 @@ export default function EquipamentosPage() {
     getEletronicosPaginated({
       q: searchDebounced || undefined,
       campo: campoBusca,
-      centro_custo: filtroCC !== 'todos' ? [filtroCC] : undefined,
-      status: filtroStatus !== 'todos' ? [filtroStatus] : undefined,
-      tipo: filtroTipo !== 'todos' ? [filtroTipo] : undefined,
+      centro_custo: filtroCC.length ? filtroCC : undefined,
+      status: filtroStatus.length ? filtroStatus : undefined,
+      tipo: filtroTipo.length ? filtroTipo : undefined,
       page,
       page_size: pageSize,
     })
@@ -180,7 +220,96 @@ export default function EquipamentosPage() {
     getLocalizacoes().then(setLocalizacoes).catch(() => {})
     getMarcas().then(setMarcas).catch(() => {})
     getModelos().then(setModelos).catch(() => {})
+    getCessoes().then(setCessoes).catch(() => {})
   }, [])
+
+  // Aberto pela busca global ou por link: o equipamento pode não estar nesta página.
+  useEffect(() => {
+    if (!detalheId || eletronicos.some((e) => e.id === detalheId)) return
+    getEletronicos()
+      .then((todos) => setDetalheAvulso(todos.find((e) => e.id === detalheId) ?? null))
+      .catch(() => {})
+  }, [detalheId, eletronicos])
+
+  const detalhe =
+    eletronicos.find((e) => e.id === detalheId) ??
+    (detalheAvulso?.id === detalheId ? detalheAvulso : null)
+
+  const historico = useMemo(
+    () =>
+      detalhe
+        ? cessoes
+            .filter((c) => c.eletronicos.some((x) => x.id === detalhe.id))
+            .sort((a, b) => b.cedido_em.localeCompare(a.cedido_em))
+        : [],
+    [cessoes, detalhe],
+  )
+
+  function abrirDetalhe(id: number | null) {
+    setDetalheId(id)
+    // A URL acompanha, para o link poder ser copiado; sem recarregar a página.
+    const url = new URL(window.location.href)
+    if (id) url.searchParams.set('id', String(id))
+    else url.searchParams.delete('id')
+    window.history.replaceState(null, '', url)
+  }
+
+  function alternarMarcado(e: Eletronico) {
+    setMarcados((m) => {
+      const n = new Map(m)
+      if (n.has(e.id)) n.delete(e.id)
+      else n.set(e.id, e)
+      return n
+    })
+  }
+
+  const paginaMarcada = eletronicos.length > 0 && eletronicos.every((e) => marcados.has(e.id))
+  function marcarPagina() {
+    setMarcados((m) => {
+      const n = new Map(m)
+      eletronicos.forEach((e) => (paginaMarcada ? n.delete(e.id) : n.set(e.id, e)))
+      return n
+    })
+  }
+
+  const listaMarcada = [...marcados.values()]
+  const internosMarcados = listaMarcada.filter((e) => e.status === 'Interno')
+  const emManutencaoMarcados = listaMarcada.filter((e) => e.status === 'Em Manutenção')
+
+  /** Uma alteração aplicada a vários; a API só edita um por vez. */
+  async function aplicarEmLote(
+    alvos: Eletronico[],
+    mudar: (p: EletronicoPayload) => EletronicoPayload,
+    feito: string,
+  ) {
+    setEmLote(true)
+    let falhas = 0
+    for (const e of alvos) {
+      try {
+        await updateEletronico(e.id, mudar(payloadDe(e)))
+      } catch {
+        falhas += 1
+      }
+    }
+    setEmLote(false)
+    if (falhas) toast.error(`${alvos.length - falhas} ${feito}; ${falhas} não puderam ser alterados.`)
+    else toast.success(`${alvos.length} ${feito}.`)
+    setMarcados(new Map())
+    reload()
+  }
+
+  function cederMarcados() {
+    const ids = internosMarcados.map((e) => e.id).join(',')
+    router.push(`/equipamentos/ceder?ids=${ids}`)
+  }
+
+  const podeCeder =
+    user?.tipo === 'Admin' ||
+    user?.tipo === 'Tecnico_TI' ||
+    user?.tipo === 'Gestor' ||
+    user?.tipo === 'Subgestor'
+
+  const filtrosAtivos = filtroCC.length + filtroStatus.length + filtroTipo.length > 0 || search !== ''
 
   async function handleCriarLocalizacao(e: React.FormEvent) {
     e.preventDefault()
@@ -316,9 +445,9 @@ export default function EquipamentosPage() {
     getEletronicosPaginated({
       q: searchDebounced || undefined,
       campo: campoBusca,
-      centro_custo: filtroCC !== 'todos' ? [filtroCC] : undefined,
-      status: filtroStatus !== 'todos' ? [filtroStatus] : undefined,
-      tipo: filtroTipo !== 'todos' ? [filtroTipo] : undefined,
+      centro_custo: filtroCC.length ? filtroCC : undefined,
+      status: filtroStatus.length ? filtroStatus : undefined,
+      tipo: filtroTipo.length ? filtroTipo : undefined,
       page,
       page_size: pageSize,
     })
@@ -408,8 +537,13 @@ export default function EquipamentosPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">Equipamentos</h1>
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Equipamentos</h1>
+          <p className="text-sm text-muted-foreground">
+            Tudo o que está no inventário: interno, cedido ou em manutenção.
+          </p>
+        </div>
         <div className="flex flex-wrap gap-2">
           {(user?.tipo === 'Admin' ||
             user?.tipo === 'Tecnico_TI' ||
@@ -429,13 +563,15 @@ export default function EquipamentosPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="rounded-xl border bg-card shadow-xs">
+      <div className="flex flex-wrap items-center gap-2 border-b p-3">
         <Input
+          className="h-9 min-w-56 flex-1 sm:max-w-sm"
           placeholder={
             campoBusca === 'sem_responsavel'
               ? 'Filtro ativo — busca desabilitada'
               : campoBusca === 'todos'
-                ? 'Buscar (nome, série, patrimônio, marca, modelo, IP, localização)…'
+                ? 'Patrimônio, série, nome, modelo, IP, localização…'
                 : `Buscar por ${CAMPOS_BUSCA[campoBusca].toLowerCase()}…`
           }
           value={search}
@@ -446,7 +582,7 @@ export default function EquipamentosPage() {
           value={campoBusca}
           onValueChange={(v) => setCampoBusca(v as CampoBuscaEletronico)}
         >
-          <SelectTrigger>
+          <SelectTrigger className="h-9 w-auto min-w-36">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -459,80 +595,185 @@ export default function EquipamentosPage() {
             )}
           </SelectContent>
         </Select>
-        <SearchableSelect
-          value={filtroCC}
-          onChange={setFiltroCC}
-          options={[
-            { value: 'todos', label: 'Todos os CCs' },
-            ...contratos.map((c) => ({ value: c.centro_custo, label: c.centro_custo })),
-          ]}
+        <FiltroMulti
+          titulo="Tipo"
+          opcoes={tiposCatalogo.map((t) => ({ value: t.nome, label: t.nome }))}
+          valor={filtroTipo}
+          onChange={setFiltroTipo}
         />
-        <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-          <SelectTrigger>
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os status</SelectItem>
-            <SelectItem value="Interno">Interno</SelectItem>
-            <SelectItem value="Externo">Cedidos</SelectItem>
-            <SelectItem value="Em Manutenção">Em Manutenção</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-          <SelectTrigger>
-            <SelectValue placeholder="Tipo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os tipos</SelectItem>
-            {tiposCatalogo.map((t) => (
-              <SelectItem key={t.id} value={t.nome}>{t.nome}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <FiltroMulti
+          titulo="Situação"
+          opcoes={(['Interno', 'Externo', 'Em Manutenção'] as const).map((s) => ({
+            value: s,
+            label: ROTULO_STATUS[s],
+          }))}
+          valor={filtroStatus}
+          onChange={setFiltroStatus}
+        />
+        <FiltroMulti
+          titulo="Centro de custo"
+          opcoes={contratos.map((c) => ({
+            value: c.centro_custo,
+            label: `${c.centro_custo} · ${c.descricao}`,
+          }))}
+          valor={filtroCC}
+          onChange={setFiltroCC}
+        />
+        {filtrosAtivos && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setSearch('')
+              setFiltroCC([])
+              setFiltroStatus([])
+              setFiltroTipo([])
+            }}
+          >
+            Limpar
+          </Button>
+        )}
+        <div className="ml-auto flex rounded-lg bg-muted p-0.5" role="group" aria-label="Visualização">
+          {(
+            [
+              ['tabela', List, 'Tabela'],
+              ['cartoes', LayoutGrid, 'Cartões'],
+            ] as const
+          ).map(([m, Icone, rotulo]) => (
+            <button
+              key={m}
+              type="button"
+              title={rotulo}
+              aria-pressed={modo === m}
+              onClick={() => setModo(m)}
+              className={
+                'rounded-md px-2 py-1 text-muted-foreground aria-pressed:bg-card aria-pressed:text-foreground aria-pressed:shadow-xs'
+              }
+            >
+              <Icone className="h-4 w-4" />
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full min-w-[600px] text-sm">
+      {modo === 'cartoes' ? (
+        <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {eletronicos.length === 0 && (
+            <p className="col-span-full py-8 text-center text-sm text-muted-foreground">
+              {loading ? 'Carregando…' : 'Nenhum equipamento com esses filtros.'}
+            </p>
+          )}
+          {eletronicos.map((e) => (
+            <div
+              key={e.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => abrirDetalhe(e.id)}
+              onKeyDown={(ev) => ev.key === 'Enter' && abrirDetalhe(e.id)}
+              className={
+                'flex cursor-pointer flex-col gap-2 rounded-xl border bg-card p-3 text-left transition-colors hover:border-ring ' +
+                (marcados.has(e.id) ? 'border-primary bg-primary/5' : '')
+              }
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{e.nome}</p>
+                  <p className="font-mono text-xs text-muted-foreground">{e.numero_patrimonio}</p>
+                </div>
+                <input
+                  type="checkbox"
+                  className="mt-1 accent-primary"
+                  checked={marcados.has(e.id)}
+                  onClick={(ev) => ev.stopPropagation()}
+                  onChange={() => alternarMarcado(e)}
+                  aria-label={`Marcar ${e.numero_patrimonio}`}
+                />
+              </div>
+              <StatusEquipamento status={e.status} />
+              <dl className="grid grid-cols-[auto_1fr] gap-x-2 text-xs">
+                <dt className="text-muted-foreground">Modelo</dt>
+                <dd className="truncate">{[e.marca, e.modelo].filter(Boolean).join(' ') || '—'}</dd>
+                <dt className="text-muted-foreground">CC</dt>
+                <dd>{e.centro_custo}</dd>
+                <dt className="text-muted-foreground">Local</dt>
+                <dd className="truncate">{e.localizacao || '—'}</dd>
+                <dt className="text-muted-foreground">Com</dt>
+                <dd className="truncate">{responsavelDe(e)}</dd>
+              </dl>
+            </div>
+          ))}
+        </div>
+      ) : (
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[760px] text-sm">
           <thead>
-            <tr className="border-b bg-muted/50">
-              <th className="px-4 py-2 text-left font-medium">Nome</th>
-              <th className="px-4 py-2 text-left font-medium">Tipo</th>
-              <th className="px-4 py-2 text-left font-medium">CC</th>
-              <th className="px-4 py-2 text-left font-medium">Status</th>
-              <th className="px-4 py-2 text-left font-medium">Responsável</th>
-              {canWrite && <th className="px-4 py-2" />}
+            <tr className="border-b bg-muted/40 text-xs text-muted-foreground">
+              <th className="w-10 px-3 py-2">
+                <input
+                  type="checkbox"
+                  className="accent-primary"
+                  checked={paginaMarcada}
+                  onChange={marcarPagina}
+                  aria-label="Marcar a página"
+                />
+              </th>
+              <th className="px-3 py-2 text-left font-medium">Patrimônio</th>
+              <th className="px-3 py-2 text-left font-medium">Equipamento</th>
+              <th className="px-3 py-2 text-left font-medium">Situação</th>
+              <th className="px-3 py-2 text-left font-medium">CC</th>
+              <th className="px-3 py-2 text-left font-medium">Localização</th>
+              <th className="px-3 py-2 text-left font-medium">Responsável</th>
+              {canWrite && <th className="px-3 py-2" />}
             </tr>
           </thead>
           <tbody>
             {loading && eletronicos.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
                   Carregando…
                 </td>
               </tr>
             ) : eletronicos.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
-                  Nenhum equipamento encontrado.
+                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                  Nenhum equipamento com esses filtros.
                 </td>
               </tr>
             ) : (
               eletronicos.map((e) => {
                 const temResp = assocsEl.some((a) => a.eletronico_id === e.id)
                 return (
-                  <tr key={e.id} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="px-4 py-2">
+                  <tr
+                    key={e.id}
+                    onClick={() => abrirDetalhe(e.id)}
+                    className={
+                      'cursor-pointer border-b last:border-0 hover:bg-muted/40 ' +
+                      (marcados.has(e.id) ? 'bg-primary/5' : '')
+                    }
+                  >
+                    <td className="px-3 py-2" onClick={(ev) => ev.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="accent-primary"
+                        checked={marcados.has(e.id)}
+                        onChange={() => alternarMarcado(e)}
+                        aria-label={`Marcar ${e.numero_patrimonio}`}
+                      />
+                    </td>
+                    <td className="px-3 py-2 font-mono tabular-nums">{e.numero_patrimonio}</td>
+                    <td className="px-3 py-2">
                       <p className="font-medium">{e.nome}</p>
-                      <p className="text-xs text-muted-foreground">{e.numero_serie}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {e.tipo}
+                        {(e.marca || e.modelo) && ` · ${[e.marca, e.modelo].filter(Boolean).join(' ')}`}
+                      </p>
                     </td>
-                    <td className="px-4 py-2">{e.tipo}</td>
-                    <td className="px-4 py-2">{e.centro_custo}</td>
-                    <td className="px-4 py-2">
-                      <Badge variant={STATUS_COLORS[e.status] as 'default' | 'secondary' | 'destructive'}>
-                        {e.status}
-                      </Badge>
+                    <td className="px-3 py-2">
+                      <StatusEquipamento status={e.status} />
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-3 py-2 font-mono">{e.centro_custo}</td>
+                    <td className="max-w-44 truncate px-3 py-2 text-muted-foreground">{e.localizacao || '—'}</td>
+                    <td className="px-3 py-2" onClick={(ev) => ev.stopPropagation()}>
                       <div className="flex items-center gap-1">
                         <span className="text-sm">{responsavelDe(e)}</span>
                         {temResp && podeAssociar(e) && (
@@ -549,8 +790,8 @@ export default function EquipamentosPage() {
                       </div>
                     </td>
                     {canWrite && (
-                      <td className="px-4 py-2">
-                        <div className="flex gap-1 justify-end">
+                      <td className="px-3 py-2" onClick={(ev) => ev.stopPropagation()}>
+                        <div className="flex justify-end gap-1">
                           {podeAssociar(e) && (
                             <Button
                               size="icon"
@@ -562,10 +803,10 @@ export default function EquipamentosPage() {
                               <UsersIcon className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => abrirEditar(e)}>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => abrirEditar(e)} title="Editar">
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDelete(e.id)}>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDelete(e.id)} title="Excluir">
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -578,9 +819,10 @@ export default function EquipamentosPage() {
           </tbody>
         </table>
       </div>
+      )}
 
       {total > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-4 py-2 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2 text-sm">
           <span className="text-muted-foreground">
             Mostrando{' '}
             <strong>
@@ -624,6 +866,196 @@ export default function EquipamentosPage() {
           </div>
         </div>
       )}
+
+      </div>
+
+      {marcados.size > 0 && (
+        <div className="sticky bottom-3 z-20 mx-auto flex w-fit max-w-full flex-wrap items-center gap-2 rounded-xl bg-foreground px-4 py-2 text-sm text-background shadow-lg">
+          <b>{marcados.size} marcado(s)</b>
+          <span className="opacity-70">{internosMarcados.length} disponível(is) para ceder</span>
+          {podeCeder && (
+            <Button size="sm" disabled={!internosMarcados.length || emLote} onClick={cederMarcados}>
+              <ArrowRight className="h-4 w-4" /> Ceder ({internosMarcados.length})
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-background hover:bg-background/15 hover:text-background"
+            disabled={emLote}
+            onClick={() => {
+              setLocalLote('')
+              setLocalLoteOpen(true)
+            }}
+          >
+            <MapPin className="h-4 w-4" /> Mudar localização
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-background hover:bg-background/15 hover:text-background"
+            disabled={!internosMarcados.length || emLote}
+            onClick={() =>
+              aplicarEmLote(internosMarcados, (p) => ({ ...p, status: 'Em Manutenção' }), 'foram para manutenção')
+            }
+          >
+            <Wrench className="h-4 w-4" /> Manutenção ({internosMarcados.length})
+          </Button>
+          {emManutencaoMarcados.length > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-background hover:bg-background/15 hover:text-background"
+              disabled={emLote}
+              onClick={() =>
+                aplicarEmLote(emManutencaoMarcados, (p) => ({ ...p, status: 'Interno' }), 'voltaram da manutenção')
+              }
+            >
+              <Undo2 className="h-4 w-4" /> Voltou da manutenção ({emManutencaoMarcados.length})
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-background hover:bg-background/15 hover:text-background"
+            onClick={() => setMarcados(new Map())}
+          >
+            <X className="h-4 w-4" /> Limpar
+          </Button>
+        </div>
+      )}
+
+      <Dialog open={localLoteOpen} onOpenChange={setLocalLoteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mudar a localização de {marcados.size} equipamento(s)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1">
+            <Label>Nova localização</Label>
+            <SearchableSelect
+              value={localLote}
+              onChange={setLocalLote}
+              options={localizacoes.map((l) => ({ value: l.nome, label: l.nome }))}
+              placeholder="Escolha…"
+            />
+          </div>
+          <Button
+            className="w-full"
+            disabled={!localLote || emLote}
+            onClick={() => {
+              setLocalLoteOpen(false)
+              aplicarEmLote(listaMarcada, (p) => ({ ...p, localizacao: localLote }), 'mudaram de localização')
+            }}
+          >
+            Mover
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      <Sheet open={detalhe !== null} onOpenChange={(o) => !o && abrirDetalhe(null)}>
+        <SheetContent className="w-full gap-0 sm:max-w-md">
+          {detalhe && (
+            <>
+              <SheetHeader className="border-b">
+                <SheetTitle>{detalhe.nome}</SheetTitle>
+                <SheetDescription className="font-mono">Patrimônio {detalhe.numero_patrimonio}</SheetDescription>
+              </SheetHeader>
+              <div className="flex-1 space-y-5 overflow-y-auto p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusEquipamento status={detalhe.status} />
+                  <span className="text-sm text-muted-foreground">com {responsavelDe(detalhe)}</span>
+                </div>
+                <dl className="grid grid-cols-[8.5rem_1fr] gap-x-3 gap-y-2 text-sm">
+                  <dt className="text-muted-foreground">Tipo</dt>
+                  <dd>{detalhe.tipo}</dd>
+                  <dt className="text-muted-foreground">Marca e modelo</dt>
+                  <dd>{[detalhe.marca, detalhe.modelo].filter(Boolean).join(' ') || '—'}</dd>
+                  <dt className="text-muted-foreground">Nº de série</dt>
+                  <dd className="font-mono">{detalhe.numero_serie}</dd>
+                  <dt className="text-muted-foreground">Centro de custo</dt>
+                  <dd>
+                    {detalhe.centro_custo}
+                    {contratos.find((c) => c.centro_custo === detalhe.centro_custo)?.descricao &&
+                      ` · ${contratos.find((c) => c.centro_custo === detalhe.centro_custo)?.descricao}`}
+                  </dd>
+                  <dt className="text-muted-foreground">Localização</dt>
+                  <dd>{detalhe.localizacao || '—'}</dd>
+                  {detalhe.ip && (
+                    <>
+                      <dt className="text-muted-foreground">IP</dt>
+                      <dd className="font-mono">{detalhe.ip}</dd>
+                    </>
+                  )}
+                  {detalhe.descricao && (
+                    <>
+                      <dt className="text-muted-foreground">Descrição</dt>
+                      <dd className="whitespace-pre-line">{detalhe.descricao}</dd>
+                    </>
+                  )}
+                </dl>
+                <div>
+                  <p className="mb-2 text-sm font-medium">Histórico de cessões</p>
+                  {historico.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nunca foi cedido.</p>
+                  ) : (
+                    <ul className="space-y-3 border-l pl-4 text-sm">
+                      {historico.map((c) => {
+                        const item = c.eletronicos.find((x) => x.id === detalhe.id)
+                        return (
+                          <li key={c.id} className="relative before:absolute before:top-1.5 before:-left-[21px] before:size-2.5 before:rounded-full before:bg-primary">
+                            <Link href={`/cessoes?id=${c.id}`} className="font-medium hover:underline">
+                              Cessão #{c.id} · {c.responsavel}
+                            </Link>
+                            <p className="text-xs text-muted-foreground">
+                              cedido em {formatDate(c.cedido_em).slice(0, 10)} · CC {c.centro_custo_destino}
+                              {item?.devolvido_em
+                                ? ` · devolvido em ${formatDate(item.devolvido_em).slice(0, 10)}`
+                                : ' · ainda com o responsável'}
+                            </p>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap justify-between gap-2 border-t p-4">
+                {canWrite && (
+                  <Button
+                    variant="outline"
+                    className="text-destructive"
+                    onClick={() => {
+                      handleDelete(detalhe.id)
+                      abrirDetalhe(null)
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" /> Excluir
+                  </Button>
+                )}
+                <div className="ml-auto flex gap-2">
+                  {podeCeder && detalhe.status === 'Interno' && (
+                    <Button variant="outline" asChild>
+                      <Link href={`/equipamentos/ceder?ids=${detalhe.id}`}>
+                        <ArrowRight className="h-4 w-4" /> Ceder
+                      </Link>
+                    </Button>
+                  )}
+                  {canWrite && (
+                    <Button
+                      onClick={() => {
+                        abrirEditar(detalhe)
+                        abrirDetalhe(null)
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" /> Editar
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-lg">
@@ -1048,5 +1480,13 @@ export default function EquipamentosPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function EquipamentosPage() {
+  return (
+    <Suspense fallback={null}>
+      <EquipamentosConteudo />
+    </Suspense>
   )
 }

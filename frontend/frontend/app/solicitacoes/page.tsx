@@ -9,28 +9,34 @@ import {
   rejeitarSolicitacao,
   cancelarSolicitacao,
 } from '@/lib/api/solicitacoes'
-import type { Solicitacao } from '@/types/api'
+import type { Solicitacao, User } from '@/types/api'
+import { getUsers } from '@/lib/api/users'
 import Link from 'next/link'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/utils'
-import { Check, X, Trash2, FileText } from 'lucide-react'
+import { Check, X, Trash2, FileText, ArrowRight, LogIn, UserCog } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
-const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive'> = {
-  pendente: 'secondary',
-  aprovada: 'default',
-  rejeitada: 'destructive',
+const SITUACAO: Record<Solicitacao['status'], [string, string]> = {
+  pendente: ['Pendente', 'bg-warn-bg text-warn'],
+  aprovada: ['Aprovada', 'bg-ok-bg text-ok'],
+  rejeitada: ['Recusada', 'bg-muted text-muted-foreground'],
 }
+
+const ICONE = { cessao: ArrowRight, entrada_cc: LogIn, cargo_inicial: UserCog }
 
 export default function SolicitacoesPage() {
   const { user } = useAuth()
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([])
+  const [usuarios, setUsuarios] = useState<User[]>([])
+  const nomeDe = (id: number) => usuarios.find((u) => u.id === id)?.nome ?? `#${id}`
 
   const load = () => {
     getSolicitacoes().then(setSolicitacoes).catch(() => {})
   }
 
   useEffect(() => {
+    getUsers().then(setUsuarios).catch(() => {})
     load()
     const id = setInterval(load, 5000)
     return () => clearInterval(id)
@@ -94,62 +100,54 @@ export default function SolicitacoesPage() {
           (user?.tipo === 'Gestor' || user?.tipo === 'Admin'))
       )
 
+    const Icone = ICONE[s.tipo]
+    const [rotulo, cor] = SITUACAO[s.status]
     return (
-      <div key={s.id} className="flex items-start justify-between rounded-md border p-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Badge variant={STATUS_VARIANT[s.status]}>{s.status}</Badge>
-            <span>{labelTipo(s.tipo)}</span>
-          </div>
-          {s.tipo === 'cessao' ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                CC origem: <strong>{s.centro_custo}</strong>
-                {' → CC destino: '}
-                <strong>{s.centro_custo_destino}</strong>
-              </p>
-              <p className="text-sm">
-                <strong>Responsável (recebe):</strong> {s.responsavel}
-                {' · '}
-                <span className="text-muted-foreground">
-                  {s.eletronicos?.length ?? 0} equipamento(s)
-                </span>
-              </p>
-              <Link href={`/solicitacoes/${s.id}/termo`}>
-                <Button size="sm" variant="outline" className="mt-1">
-                  <FileText className="mr-1 h-3 w-3" />
-                  Ver termo
-                </Button>
-              </Link>
-            </>
-          ) : (
-            <>
-              {s.centro_custo && (
-                <p className="text-sm text-muted-foreground">
-                  CC: <strong>{s.centro_custo}</strong>
-                  {s.ocupacao_solicitada && ` · ${s.ocupacao_solicitada}`}
-                </p>
-              )}
-              {s.cargo_solicitado && (
-                <p className="text-sm text-muted-foreground">
-                  Cargo: <strong>{s.cargo_solicitado}</strong>
-                </p>
-              )}
-            </>
+      <li key={s.id} className="flex flex-wrap items-start gap-3 px-4 py-3.5">
+        <span
+          className={cn(
+            'grid size-9 shrink-0 place-items-center rounded-lg',
+            isPendente ? 'bg-warn-bg text-warn' : 'bg-muted text-muted-foreground',
           )}
-          <p className="text-xs text-muted-foreground">
-            Solicitante #{s.solicitante_id} · {formatDate(s.criado_em)}
-            {isConvite && ' · convite'}
+        >
+          <Icone className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <p className="text-sm">
+            <b className="font-semibold">{nomeDe(s.solicitante_id)}</b>
+            <span className="text-muted-foreground"> · {labelTipo(s.tipo)}</span>
+            {isConvite && <span className="text-muted-foreground"> · convite</span>}
+            <span className={cn('ml-2 rounded-full px-2 py-0.5 text-xs font-medium', cor)}>{rotulo}</span>
           </p>
+          {s.tipo === 'cessao' ? (
+            <p className="text-sm text-muted-foreground">
+              {s.eletronicos?.length ?? 0} equipamento(s) do CC {s.centro_custo} para o CC{' '}
+              {s.centro_custo_destino} · recebe <strong className="text-foreground">{s.responsavel}</strong>
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {s.centro_custo && <>CC {s.centro_custo}</>}
+              {s.ocupacao_solicitada && <> como {s.ocupacao_solicitada}</>}
+              {s.cargo_solicitado && <>cargo {s.cargo_solicitado}</>}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">{formatDate(s.criado_em)}</p>
         </div>
-        <div className="flex gap-1 ml-4 shrink-0">
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+          {s.tipo === 'cessao' && (
+            <Button size="sm" variant="ghost" asChild>
+              <Link href={`/solicitacoes/${s.id}/termo`}>
+                <FileText className="h-4 w-4" /> Termo
+              </Link>
+            </Button>
+          )}
           {isPendente && canAprovar && (
             <>
-              <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600" onClick={() => aprovar(s.id)}>
-                <Check className="h-4 w-4" />
+              <Button size="sm" variant="outline" onClick={() => rejeitar(s.id)}>
+                <X className="h-4 w-4" /> Recusar
               </Button>
-              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => rejeitar(s.id)}>
-                <X className="h-4 w-4" />
+              <Button size="sm" onClick={() => aprovar(s.id)}>
+                <Check className="h-4 w-4" /> Aprovar
               </Button>
             </>
           )}
@@ -157,7 +155,7 @@ export default function SolicitacoesPage() {
             <Button
               size="icon"
               variant="ghost"
-              className="h-7 w-7 text-destructive"
+              className="h-8 w-8 text-destructive"
               onClick={() => cancelar(s.id)}
               title={isAdmin ? 'Excluir' : 'Cancelar'}
             >
@@ -165,28 +163,44 @@ export default function SolicitacoesPage() {
             </Button>
           )}
         </div>
-      </div>
+      </li>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Solicitações</h1>
-
+    <div className="mx-auto max-w-5xl space-y-5">
       <div>
-        <h2 className="mb-3 font-semibold">Pendentes ({pendentes.length})</h2>
-        {pendentes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma solicitação pendente.</p>
-        ) : (
-          <div className="space-y-2">{pendentes.map(renderItem)}</div>
-        )}
+        <h1 className="text-2xl font-bold tracking-tight">Solicitações</h1>
+        <p className="text-sm text-muted-foreground">
+          Pedidos de entrada em CC, de cargo e de cessão que esperam resposta.
+        </p>
       </div>
 
+      <section className="rounded-xl border bg-card shadow-xs">
+        <header className="flex items-center gap-2 border-b px-4 py-3">
+          <h2 className="text-sm font-semibold">Pendentes</h2>
+          {pendentes.length > 0 && (
+            <span className="rounded-full bg-primary px-2 text-xs font-bold text-primary-foreground">
+              {pendentes.length}
+            </span>
+          )}
+        </header>
+        {pendentes.length === 0 ? (
+          <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+            Nada pendente. Quando alguém pedir, aparece aqui.
+          </p>
+        ) : (
+          <ul className="divide-y">{pendentes.map(renderItem)}</ul>
+        )}
+      </section>
+
       {historico.length > 0 && (
-        <div>
-          <h2 className="mb-3 font-semibold">Histórico</h2>
-          <div className="space-y-2">{historico.map(renderItem)}</div>
-        </div>
+        <section className="rounded-xl border bg-card shadow-xs">
+          <header className="border-b px-4 py-3">
+            <h2 className="text-sm font-semibold">Histórico</h2>
+          </header>
+          <ul className="divide-y">{historico.map(renderItem)}</ul>
+        </section>
       )}
     </div>
   )

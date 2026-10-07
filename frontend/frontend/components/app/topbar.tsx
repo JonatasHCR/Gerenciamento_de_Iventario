@@ -14,6 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/context/auth-context'
 import { MobileSidebar } from './mobile-sidebar'
+import { BuscaGlobal } from './busca-global'
 import { getSolicitacoes, aprovarSolicitacao, rejeitarSolicitacao } from '@/lib/api/solicitacoes'
 import type { Solicitacao } from '@/types/api'
 import { formatDate } from '@/lib/utils'
@@ -64,6 +65,7 @@ export function Topbar() {
   return (
     <header className="flex h-14 items-center gap-1 border-b bg-card px-4 md:px-6">
       <MobileSidebar />
+      <BuscaGlobal />
       <div className="flex-1" />
       {mounted && (
         <Button

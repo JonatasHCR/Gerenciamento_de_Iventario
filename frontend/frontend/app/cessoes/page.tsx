@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import {
@@ -25,11 +25,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { FileText, FileCheck, Undo2, Plus, Trash2 } from 'lucide-react'
+import { FileText, FileCheck, Undo2, Plus, Trash2, Search, Building2 } from 'lucide-react'
+import { StatusCessao } from '@/components/app/status'
+import { cn } from '@/lib/utils'
 
-export default function CessoesPage() {
+type Aba = 'abertas' | 'recebimentos' | 'devolvidas'
+
+const temRecebimentoNovo = (c: Cessao) => c.devolucoes.some((d) => d.gestor_visto_em === null)
+
+function CessoesConteudo() {
   const { user } = useAuth()
   const router = useRouter()
+  const busca = useSearchParams()
+  const destacada = Number(busca.get('id')) || null
+  // Sem escolha da pessoa, a aba segue a cessão do link (ou o ?aba=).
+  const [abaEscolhida, setAba] = useState<Aba | null>(() =>
+    busca.get('aba') === 'recebimentos' ? 'recebimentos' : null,
+  )
+  const [texto, setTexto] = useState('')
   const [cessoes, setCessoes] = useState<Cessao[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -171,31 +184,59 @@ export default function CessoesPage() {
 
   const ativas = cessoes.filter((c) => c.status !== 'devolvida')
   const devolvidas = cessoes.filter((c) => c.status === 'devolvida')
-
-  const renderStatusBadge = (c: Cessao) => {
-    if (c.status === 'devolvida') {
-      return <Badge variant="secondary">Devolvida</Badge>
-    }
-    if (c.status === 'parcial') {
-      return (
-        <Badge className="bg-amber-500 hover:bg-amber-500 text-white">
-          Parcial · {c.total_devolvidos}/{c.total_eletronicos}
-        </Badge>
+  const comRecebimentoNovo = cessoes.filter(temRecebimentoNovo)
+  const semAcento = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const q = semAcento(texto.trim())
+  const doLink = cessoes.find((x) => x.id === destacada)
+  const aba: Aba = abaEscolhida ?? (doLink?.status === 'devolvida' ? 'devolvidas' : 'abertas')
+  const daAba = aba === 'abertas' ? ativas : aba === 'devolvidas' ? devolvidas : comRecebimentoNovo
+  const visiveis = q
+    ? daAba.filter((c) =>
+        semAcento(
+          `#${c.id} ${c.responsavel} ${c.centro_custo_destino} ${c.eletronicos.map((e) => `${e.nome} ${e.numero_patrimonio}`).join(' ')}`,
+        ).includes(q),
       )
-    }
-    return <Badge>Ativa</Badge>
-  }
+    : daAba
+
+  // Aberta por link (?id=): leva até o cartão, na aba em que ele está.
+  useEffect(() => {
+    if (!destacada || loading) return
+    document.getElementById(`cessao-${destacada}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [destacada, loading, cessoes, aba])
+
+
+  const renderStatusBadge = (c: Cessao) => (
+    <StatusCessao
+      status={c.status}
+      detalhe={c.status === 'parcial' ? `${c.total_devolvidos}/${c.total_eletronicos}` : undefined}
+    />
+  )
 
   const renderItem = (c: Cessao) => {
     const podeDevolver =
       canDevolver(c) && (c.status === 'ativa' || c.status === 'parcial')
     const podeExcluir = canDelete(c)
     return (
-      <div key={c.id} className="rounded-md border bg-card p-4 space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            {renderStatusBadge(c)}
-            <span className="text-sm font-medium">#{c.id}</span>
+      <div
+        key={c.id}
+        id={`cessao-${c.id}`}
+        className={cn(
+          'space-y-3 rounded-xl border bg-card p-4 shadow-xs',
+          destacada === c.id && 'border-primary ring-2 ring-primary/30',
+        )}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="font-semibold">
+              #{c.id} · {c.responsavel}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {renderStatusBadge(c)}
+              <span className="inline-flex items-center gap-1">
+                <Building2 className="h-3.5 w-3.5" /> CC {c.centro_custo_destino}
+              </span>
+              <span>cedida em {formatDate(c.cedido_em).slice(0, 10)}</span>
+            </div>
           </div>
           <div className="flex flex-wrap justify-end gap-1">
             <Link href={`/cessoes/${c.id}/termo`}>
@@ -227,21 +268,36 @@ export default function CessoesPage() {
             )}
           </div>
         </div>
-        <div>
-          <p className="text-sm">
-            <strong>Responsável:</strong> {c.responsavel}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            CC destino: <strong>{c.centro_custo_destino}</strong>
-            {' · '}
-            {c.total_eletronicos} equipamento(s)
-            {c.status === 'parcial' &&
-              ` · ${c.total_pendentes} pendente(s)`}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Cedida em {formatDate(c.cedido_em)}
-            {c.devolvida_em && ` · Devolvida em ${formatDate(c.devolvida_em)}`}
-          </p>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              {c.total_devolvidos} de {c.total_eletronicos} devolvido(s)
+              {c.perifericos.length > 0 &&
+                ` · + ${c.perifericos.map((p) => `${p.quantidade} ${p.nome.toLowerCase()}`).join(', ')}`}
+            </span>
+            {c.devolvida_em && <span>devolvida em {formatDate(c.devolvida_em).slice(0, 10)}</span>}
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full bg-ok"
+              style={{ width: `${(c.total_devolvidos / Math.max(1, c.total_eletronicos)) * 100}%` }}
+            />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {c.eletronicos.map((e) => (
+              <Link
+                key={e.id}
+                href={`/equipamentos?id=${e.id}`}
+                title={`${e.numero_patrimonio} · ${e.numero_serie}`}
+                className={cn(
+                  'rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground',
+                  e.devolvido_em && 'line-through opacity-60',
+                )}
+              >
+                {e.nome}
+              </Link>
+            ))}
+          </div>
         </div>
 
         {c.devolucoes.length > 0 && (
@@ -281,8 +337,13 @@ export default function CessoesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Cessões</h1>
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Cessões</h1>
+          <p className="text-sm text-muted-foreground">
+            Equipamentos emprestados para fora do patrimônio e as devoluções.
+          </p>
+        </div>
         {canRequest && (
           <Link href="/equipamentos/ceder">
             <Button size="sm">
@@ -293,28 +354,52 @@ export default function CessoesPage() {
         )}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex rounded-lg bg-muted p-0.5 text-sm" role="tablist">
+          {(
+            [
+              ['abertas', 'Em aberto', ativas.length],
+              ['recebimentos', 'Recebimentos novos', comRecebimentoNovo.length],
+              ['devolvidas', 'Devolvidas', devolvidas.length],
+            ] as const
+          ).map(([k, rotulo, n]) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={aba === k}
+              onClick={() => setAba(k)}
+              className="rounded-md px-3 py-1 font-medium text-muted-foreground aria-selected:bg-card aria-selected:text-foreground aria-selected:shadow-xs"
+            >
+              {rotulo} <span className="ml-1 text-xs tabular-nums opacity-70">{n}</span>
+            </button>
+          ))}
+        </div>
+        <div className="relative min-w-56 flex-1 sm:max-w-xs">
+          <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder="Responsável, CC, número ou equipamento"
+          />
+        </div>
+      </div>
+
       {loading ? (
         <p className="text-sm text-muted-foreground">Carregando…</p>
-      ) : cessoes.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhuma cessão registrada.</p>
+      ) : visiveis.length === 0 ? (
+        <div className="rounded-xl border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+          {texto
+            ? `Nenhuma cessão com “${texto}”.`
+            : aba === 'recebimentos'
+              ? 'Nenhum recebimento esperando conferência.'
+              : aba === 'abertas'
+                ? 'Nenhuma cessão em aberto.'
+                : 'Nenhuma cessão devolvida ainda.'}
+        </div>
       ) : (
-        <>
-          <div>
-            <h2 className="mb-3 font-semibold">Em aberto ({ativas.length})</h2>
-            {ativas.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhuma cessão em aberto.</p>
-            ) : (
-              <div className="space-y-2">{ativas.map(renderItem)}</div>
-            )}
-          </div>
-
-          {devolvidas.length > 0 && (
-            <div>
-              <h2 className="mb-3 font-semibold">Histórico</h2>
-              <div className="space-y-2">{devolvidas.map(renderItem)}</div>
-            </div>
-          )}
-        </>
+        <div className="grid gap-3 lg:grid-cols-2">{visiveis.map(renderItem)}</div>
       )}
 
       <Dialog
@@ -416,5 +501,13 @@ export default function CessoesPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function CessoesPage() {
+  return (
+    <Suspense fallback={null}>
+      <CessoesConteudo />
+    </Suspense>
   )
 }

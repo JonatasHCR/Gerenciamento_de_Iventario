@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { getEletronicosPaginated } from '@/lib/api/eletronicos'
@@ -19,9 +19,10 @@ import { SearchableSelect } from '@/components/app/searchable-select'
 import { ArrowLeft, FileText, Send, Plus, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 
-export default function CederPage() {
+function CederConteudo() {
   const { user } = useAuth()
   const router = useRouter()
+  const busca = useSearchParams()
   const [eletronicos, setEletronicos] = useState<Eletronico[]>([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
@@ -31,7 +32,16 @@ export default function CederPage() {
   const [meusCCsSubgestor, setMeusCCsSubgestor] = useState<string[]>([])
   const [search, setSearch] = useState('')
   const [filtroCC, setFiltroCC] = useState('todos')
-  const [selecionados, setSelecionados] = useState<Set<number>>(new Set())
+  // Vindo da lista de equipamentos (?ids=1,2,3), a seleção já chega marcada.
+  const [selecionados, setSelecionados] = useState<Set<number>>(
+    () =>
+      new Set(
+        (busca.get('ids') ?? '')
+          .split(',')
+          .map(Number)
+          .filter((n) => n > 0),
+      ),
+  )
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [responsavel, setResponsavel] = useState('')
@@ -506,5 +516,13 @@ export default function CederPage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function CederPage() {
+  return (
+    <Suspense fallback={null}>
+      <CederConteudo />
+    </Suspense>
   )
 }
