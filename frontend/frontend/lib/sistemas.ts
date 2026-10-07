@@ -30,6 +30,7 @@ export function sistemas(): Sistema[] {
     { grupo: '/apps/receita', nome: 'Receita', url: `${host}:${process.env.RECEITA_PORT ?? '3040'}` },
     { grupo: '/apps/despesa', nome: 'Radar', url: `${host}:${process.env.DESPESA_PORT ?? '3010'}` },
     { grupo: '/apps/controle-despesa', nome: 'Controle de Despesa', url: `${host}:${process.env.CONTROLE_DESPESA_PORT ?? '3050'}` },
+    { grupo: '/apps/controle-financeiro', nome: 'Controle Financeiro', url: `${host}:${process.env.CONTROLE_FINANCEIRO_PORT ?? '3060'}` },
   ]
 }
 
