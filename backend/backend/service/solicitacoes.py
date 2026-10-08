@@ -451,8 +451,9 @@ class SolicitacaoService:
 
         await self._assert_cc_exists(data.centro_custo_destino)
 
+        abertas = await self._em_cessao_aberta([e.id for e in eletronicos])
         for e in eletronicos:
-            if e.status != 'Interno':
+            if not self._cedivel(e, abertas):
                 raise HTTPException(
                     status_code=HTTPStatus.CONFLICT,
                     detail=(
@@ -552,6 +553,23 @@ class SolicitacaoService:
                 ),
             )
 
+    async def _em_cessao_aberta(self, ids: list[int]) -> set[int]:
+        result = await self.session.execute(
+            select(CessaoEletronico.eletronico_id).where(
+                CessaoEletronico.eletronico_id.in_(ids),
+                CessaoEletronico.devolvido_em.is_(None),
+            )
+        )
+        return set(result.scalars())
+
+    @staticmethod
+    def _cedivel(e: Eletronico, abertas: set[int]) -> bool:
+        # "Externo" sem cessão aberta veio de carga ou edição: pode ser
+        # regularizado por uma cessão.
+        return e.status == 'Interno' or (
+            e.status == 'Externo' and e.id not in abertas
+        )
+
     async def _criar_cessao_da_solicitacao(
         self, sol: Solicitacao, ctx: UserContext
     ) -> None:
@@ -563,8 +581,9 @@ class SolicitacaoService:
                 detail='Solicitação sem equipamentos.',
             )
 
+        abertas = await self._em_cessao_aberta([e.id for e in eletronicos])
         for e in eletronicos:
-            if e.status != 'Interno':
+            if not self._cedivel(e, abertas):
                 raise HTTPException(
                     status_code=HTTPStatus.CONFLICT,
                     detail=(
