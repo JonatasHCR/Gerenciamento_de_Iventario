@@ -200,8 +200,8 @@ function CederConteudo() {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function confirmar() {
+    if (passo !== 3) return
     if (selecionados.size === 0) {
       toast.error('Selecione ao menos um equipamento.')
       return
@@ -286,14 +286,11 @@ function CederConteudo() {
       )}
 
       <form
-        // Enter num campo não pode pular a revisão: antes do último passo ele só avança.
+        // O formulário nunca cede sozinho: Enter só avança, e a cessão sai apenas
+        // pelo clique em "Ceder e gerar termo", já na revisão.
         onSubmit={(ev) => {
-          if (passo < 3) {
-            ev.preventDefault()
-            if (podeAvancar) avancar()
-            return
-          }
-          handleSubmit(ev)
+          ev.preventDefault()
+          if (passo < 3 && podeAvancar) avancar()
         }}
         className="space-y-4"
       >
@@ -626,11 +623,18 @@ function CederConteudo() {
               <strong className="text-foreground">{selecionados.size}</strong> equipamento(s)
             </span>
             {passo < 3 ? (
-              <Button type="button" disabled={!podeAvancar} onClick={avancar}>
+              // key distinta: sem ela o React reaproveita o mesmo <button>, que vira
+              // submit no meio do clique e pula a revisão.
+              <Button key="continuar" type="button" disabled={!podeAvancar} onClick={avancar}>
                 Continuar <ArrowRight className="h-4 w-4" />
               </Button>
             ) : (
-              <Button type="submit" disabled={submitting || selecionados.size === 0 || !responsavel || !ccDestino}>
+              <Button
+                key="confirmar"
+                type="button"
+                onClick={confirmar}
+                disabled={submitting || selecionados.size === 0 || !responsavel || !ccDestino}
+              >
                 {isSubgestorOnly ? <Send className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
                 {submitting
                   ? 'Processando…'
