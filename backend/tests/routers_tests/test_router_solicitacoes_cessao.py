@@ -9,6 +9,7 @@ from itertools import count
 import pytest
 
 from backend.model.associacao_user_contrato import AssociacaoUserContrato
+from backend.model.cessao import Cessao, CessaoEletronico
 from backend.model.contratos import Contrato
 from backend.model.eletronicos import Eletronico
 from backend.model.user import User
@@ -192,6 +193,11 @@ async def test_create_solicitacao_cessao_item_externo(
     subg, ssenha = await _criar_usuario(async_db, 'sc_ex', 'Subgestor')
     await _associar(async_db, subg.id, 'CEX', 'Subgestor')
     e = await _criar_eletronico(async_db, 'CEX', status='Externo')
+    cessao = Cessao(responsavel='Y', centro_custo_destino='CEX')
+    async_db.add(cessao)
+    await async_db.flush()
+    async_db.add(CessaoEletronico(cessao_id=cessao.id, eletronico_id=e.id))
+    await async_db.commit()
     token = await _login(async_client, subg.email, ssenha)
 
     resp = await async_client.post(
@@ -205,6 +211,30 @@ async def test_create_solicitacao_cessao_item_externo(
     )
 
     assert resp.status_code == HTTPStatus.CONFLICT
+
+
+@pytest.mark.asyncio
+@pytest.mark.routers
+async def test_create_solicitacao_externo_sem_cessao_regulariza(
+    async_client, async_db
+):
+    await _criar_contrato(async_db, 'CRG')
+    subg, ssenha = await _criar_usuario(async_db, 'sc_rg', 'Subgestor')
+    await _associar(async_db, subg.id, 'CRG', 'Subgestor')
+    e = await _criar_eletronico(async_db, 'CRG', status='Externo')
+    token = await _login(async_client, subg.email, ssenha)
+
+    resp = await async_client.post(
+        f'{URL}/cessao',
+        json={
+            'eletronico_ids': [e.id],
+            'responsavel': 'X',
+            'centro_custo_destino': 'CRG',
+        },
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert resp.status_code == HTTPStatus.CREATED
 
 
 # ─── Aprovação/rejeição de cessao ──────────────────────────────────────────

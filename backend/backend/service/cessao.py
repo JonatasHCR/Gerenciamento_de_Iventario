@@ -231,8 +231,11 @@ class CessaoService:
 
     async def list_all(self, ctx: UserContext) -> list[dict]:
         is_full = ctx.is_privileged or ctx.is_tecnico_ti
+        # Ver vale para Gestor e Subgestor do CC; ceder continua só do Gestor.
         gestor_ccs = {
-            cc for cc, ocup in ctx.ocupacoes.items() if ocup == 'Gestor'
+            cc
+            for cc, ocup in ctx.ocupacoes.items()
+            if ocup in {'Gestor', 'Subgestor'}
         }
 
         if is_full:
@@ -305,7 +308,9 @@ class CessaoService:
 
         if not (ctx.is_privileged or ctx.is_tecnico_ti):
             gestor_ccs = {
-                cc for cc, ocup in ctx.ocupacoes.items() if ocup == 'Gestor'
+                cc
+                for cc, ocup in ctx.ocupacoes.items()
+                if ocup in {'Gestor', 'Subgestor'}
             }
             envolve_meu_cc = any(
                 el.centro_custo in gestor_ccs for _, el in itens
